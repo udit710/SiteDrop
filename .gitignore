@@ -5,8 +5,12 @@ aws-credentials.json
 
 # Deployment artifacts
 site.tar.gz
+deployment.tar.gz
 deploy-script.sh
 user-data.sh
+
+# Docker artifacts
+.docker
 
 # IDE and editor files
 .vscode/
@@ -33,3 +37,6 @@ yarn-error.log*
 # Temporary files
 *.tmp
 *.temp
+
+# Docker Compose override
+docker-compose.override.yml

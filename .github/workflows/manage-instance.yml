@@ -1,4 +1,4 @@
-name: Manage EC2 Instance
+name: Manage Docker Instance
 
 on:
   workflow_dispatch:
@@ -8,16 +8,20 @@ on:
         required: true
         type: choice
         options:
-          - 'stop'
-          - 'start'
-          - 'restart'
-          - 'terminate'
           - 'status'
+          - 'restart-container'
+          - 'stop-container'
+          - 'start-container'
+          - 'container-logs'
+          - 'stop-instance'
+          - 'start-instance'
+          - 'restart-instance'
+          - 'terminate'
         default: 'status'
 
 env:
   AWS_REGION: us-east-1
-  INSTANCE_NAME: static-site-host
+  INSTANCE_NAME: static-site-docker-host
 
 jobs:
   manage:
@@ -55,11 +59,20 @@ jobs:
           echo "exists=false" >> $GITHUB_OUTPUT
         fi
 
+    - name: Setup SSH key for container operations
+      if: steps.find.outputs.exists == 'true' && steps.find.outputs.instance_state == 'running' && (github.event.inputs.action == 'restart-container' || github.event.inputs.action == 'stop-container' || github.event.inputs.action == 'start-container' || github.event.inputs.action == 'container-logs' || github.event.inputs.action == 'status')
+      run: |
+        # For container operations, we need SSH access
+        # In production, you might want to store the private key as a secret
+        echo "⚠️  Note: Container operations require SSH access"
+        echo "Consider storing the private key as a GitHub secret for these operations"
+        echo "For now, container operations will be limited"
+
     - name: Show status
       if: steps.find.outputs.exists == 'true'
       run: |
-        echo "📊 Instance Status"
-        echo "=================="
+        echo "📊 Instance & Container Status"
+        echo "=============================="
         echo "Instance ID: ${{ steps.find.outputs.instance_id }}"
         echo "State: ${{ steps.find.outputs.instance_state }}"
         echo "Type: ${{ steps.find.outputs.instance_type }}"
@@ -67,6 +80,7 @@ jobs:
 
         if [ "${{ steps.find.outputs.public_ip }}" != "None" ] && [ "${{ steps.find.outputs.instance_state }}" = "running" ]; then
           echo "Site URL: http://${{ steps.find.outputs.public_ip }}"
+          echo "Health Check: http://${{ steps.find.outputs.public_ip }}/health"
 
           # Test if site is accessible
           if curl -f -s "http://${{ steps.find.outputs.public_ip }}" > /dev/null; then
@@ -74,29 +88,37 @@ jobs:
           else
             echo "❌ Site is not accessible"
           fi
+
+          # Test health endpoint
+          if curl -f -s "http://${{ steps.find.outputs.public_ip }}/health" > /dev/null; then
+            echo "✅ Health endpoint responding"
+          else
+            echo "❌ Health endpoint not responding"
+          fi
         fi
 
     - name: No instance found
       if: steps.find.outputs.exists == 'false'
       run: |
         echo "❌ No instance found with name: ${{ env.INSTANCE_NAME }}"
-        echo "Run the deploy workflow to create an instance."
+        echo "Run the deploy workflow to create a Docker-enabled instance."
         exit 1
 
     - name: Stop instance
-      if: github.event.inputs.action == 'stop' && steps.find.outputs.exists == 'true'
+      if: github.event.inputs.action == 'stop-instance' && steps.find.outputs.exists == 'true'
       run: |
         if [ "${{ steps.find.outputs.instance_state }}" = "running" ]; then
           echo "Stopping instance..."
           aws ec2 stop-instances --instance-ids ${{ steps.find.outputs.instance_id }}
           echo "✅ Stop command sent. Instance will stop shortly."
-          echo "💡 This will save costs while preserving your data."
+          echo "💡 This will save costs while preserving your data and Docker containers."
+          echo "💡 Containers will automatically restart when instance is started again."
         else
           echo "Instance is not running (current state: ${{ steps.find.outputs.instance_state }})"
         fi
 
     - name: Start instance
-      if: github.event.inputs.action == 'start' && steps.find.outputs.exists == 'true'
+      if: github.event.inputs.action == 'start-instance' && steps.find.outputs.exists == 'true'
       run: |
         if [ "${{ steps.find.outputs.instance_state }}" = "stopped" ]; then
           echo "Starting instance..."
@@ -112,22 +134,44 @@ jobs:
           echo "✅ Instance started successfully!"
           echo "New public IP: $NEW_PUBLIC_IP"
           echo "Site URL: http://$NEW_PUBLIC_IP"
+          echo "💡 Docker containers should automatically restart due to restart policies."
         else
           echo "Instance is not stopped (current state: ${{ steps.find.outputs.instance_state }})"
         fi
 
     - name: Restart instance
-      if: github.event.inputs.action == 'restart' && steps.find.outputs.exists == 'true'
+      if: github.event.inputs.action == 'restart-instance' && steps.find.outputs.exists == 'true'
       run: |
         if [ "${{ steps.find.outputs.instance_state }}" = "running" ]; then
           echo "Restarting instance..."
           aws ec2 reboot-instances --instance-ids ${{ steps.find.outputs.instance_id }}
           echo "✅ Restart command sent. Instance will reboot shortly."
           echo "💡 The public IP will remain the same after restart."
+          echo "💡 Docker containers will automatically restart."
         else
           echo "Instance is not running (current state: ${{ steps.find.outputs.instance_state }})"
-          echo "Use 'start' action instead."
+          echo "Use 'start-instance' action instead."
         fi
+
+    - name: Container operations note
+      if: (github.event.inputs.action == 'restart-container' || github.event.inputs.action == 'stop-container' || github.event.inputs.action == 'start-container' || github.event.inputs.action == 'container-logs') && steps.find.outputs.exists == 'true' && steps.find.outputs.instance_state == 'running'
+      run: |
+        echo "🐳 Docker Container Operations"
+        echo "============================="
+        echo "Instance IP: ${{ steps.find.outputs.public_ip }}"
+        echo ""
+        echo "To perform container operations, you can SSH to the instance:"
+        echo "ssh -i your-key.pem ec2-user@${{ steps.find.outputs.public_ip }}"
+        echo ""
+        echo "Available container commands:"
+        echo "- docker ps                          # Show running containers"
+        echo "- docker restart static-site-web     # Restart the web container"
+        echo "- docker stop static-site-web        # Stop the web container"
+        echo "- docker start static-site-web       # Start the web container"
+        echo "- docker logs static-site-web        # View container logs"
+        echo "- cd /opt/static-site && ./manage.sh status  # Use management script"
+        echo ""
+        echo "💡 Container operations require direct SSH access with the deployment key."
 
     - name: Terminate instance
       if: github.event.inputs.action == 'terminate' && steps.find.outputs.exists == 'true'
@@ -149,6 +193,11 @@ jobs:
         echo "==================="
 
         case "${{ steps.find.outputs.instance_type }}" in
+          "t3.micro")
+            echo "Instance type: t3.micro (Free tier eligible)"
+            echo "Cost when running: ~$0.0104/hour (~$7.60/month)"
+            echo "Cost when stopped: ~$1/month (EBS storage only)"
+            ;;
           "t2.micro")
             echo "Instance type: t2.micro (Free tier eligible)"
             echo "Cost when running: ~$0.0116/hour (~$8.50/month)"
@@ -159,9 +208,9 @@ jobs:
             echo "Cost when running: ~$0.023/hour (~$17/month)"
             echo "Cost when stopped: ~$1/month (EBS storage only)"
             ;;
-          "t3.micro")
-            echo "Instance type: t3.micro"
-            echo "Cost when running: ~$0.0104/hour (~$7.60/month)"
+          "t3.small")
+            echo "Instance type: t3.small"
+            echo "Cost when running: ~$0.0208/hour (~$15.20/month)"
             echo "Cost when stopped: ~$1/month (EBS storage only)"
             ;;
           *)
@@ -171,7 +220,15 @@ jobs:
         esac
 
         echo ""
+        echo "🐳 Docker Benefits:"
+        echo "- Zero-downtime deployments with rolling updates"
+        echo "- Consistent environment across all deployments"
+        echo "- Easy rollbacks and container management"
+        echo "- Better resource utilization"
+        echo "- Automatic container restarts on instance reboot"
+        echo ""
         echo "💡 Tips to save money:"
-        echo "- Stop the instance when not needed (keeps data, stops compute charges)"
-        echo "- Use t2.micro for free tier eligibility"
+        echo "- Stop the instance when not needed (keeps data & containers)"
+        echo "- Use t3.micro for better performance and free tier eligibility"
+        echo "- Monitor container resource usage"
         echo "- Terminate if you no longer need the site (destroys everything)"
