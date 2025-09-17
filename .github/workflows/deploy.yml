@@ -1,0 +1,347 @@
+name: Deploy Static Site to EC2
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      force_recreate:
+        description: 'Force recreate instance (destroys existing)'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  AWS_REGION: us-east-1
+  INSTANCE_TYPE: t2.micro
+  INSTANCE_NAME: static-site-host
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Check for existing instance
+      id: existing
+      run: |
+        # Look for existing instance with our tag
+        INSTANCE_DATA=$(aws ec2 describe-instances \
+          --filters "Name=tag:Name,Values=${{ env.INSTANCE_NAME }}" \
+                   "Name=instance-state-name,Values=running,pending,stopping,stopped" \
+          --query 'Reservations[0].Instances[0].[InstanceId,State.Name,PublicIpAddress]' \
+          --output text 2>/dev/null || echo "None None None")
+
+        INSTANCE_ID=$(echo $INSTANCE_DATA | cut -f1)
+        INSTANCE_STATE=$(echo $INSTANCE_DATA | cut -f2)
+        PUBLIC_IP=$(echo $INSTANCE_DATA | cut -f3)
+
+        if [ "$INSTANCE_ID" != "None" ] && [ "$INSTANCE_ID" != "" ]; then
+          echo "Found existing instance: $INSTANCE_ID (state: $INSTANCE_STATE)"
+          echo "instance_id=$INSTANCE_ID" >> $GITHUB_OUTPUT
+          echo "instance_state=$INSTANCE_STATE" >> $GITHUB_OUTPUT
+          echo "public_ip=$PUBLIC_IP" >> $GITHUB_OUTPUT
+          echo "exists=true" >> $GITHUB_OUTPUT
+        else
+          echo "No existing instance found"
+          echo "exists=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Handle force recreate
+      if: github.event.inputs.force_recreate == 'true' && steps.existing.outputs.exists == 'true'
+      run: |
+        echo "Force recreate requested - terminating existing instance"
+        aws ec2 terminate-instances --instance-ids ${{ steps.existing.outputs.instance_id }}
+        aws ec2 wait instance-terminated --instance-ids ${{ steps.existing.outputs.instance_id }}
+        echo "exists=false" >> $GITHUB_OUTPUT
+      id: force_recreate
+
+    - name: Start stopped instance
+      if: steps.existing.outputs.exists == 'true' && steps.existing.outputs.instance_state == 'stopped' && github.event.inputs.force_recreate != 'true'
+      id: start_stopped
+      run: |
+        echo "Starting stopped instance..."
+        aws ec2 start-instances --instance-ids ${{ steps.existing.outputs.instance_id }}
+        aws ec2 wait instance-running --instance-ids ${{ steps.existing.outputs.instance_id }}
+
+        # Get new public IP
+        PUBLIC_IP=$(aws ec2 describe-instances \
+          --instance-ids ${{ steps.existing.outputs.instance_id }} \
+          --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
+        echo "public_ip=$PUBLIC_IP" >> $GITHUB_OUTPUT
+
+    - name: Setup infrastructure for new instance
+      if: steps.existing.outputs.exists == 'false' || steps.force_recreate.outputs.exists == 'false'
+      id: infrastructure
+      run: |
+        # Check for existing security group
+        SG_ID=$(aws ec2 describe-security-groups \
+          --filters "Name=group-name,Values=static-site-sg" \
+          --query 'SecurityGroups[0].GroupId' --output text 2>/dev/null || echo "None")
+
+        if [ "$SG_ID" = "None" ] || [ "$SG_ID" = "" ]; then
+          echo "Creating security group..."
+          SG_ID=$(aws ec2 create-security-group \
+            --group-name "static-site-sg" \
+            --description "Security group for static site hosting" \
+            --query 'GroupId' --output text)
+
+          # Allow HTTP traffic
+          aws ec2 authorize-security-group-ingress \
+            --group-id "$SG_ID" \
+            --protocol tcp \
+            --port 80 \
+            --cidr 0.0.0.0/0
+
+          # Allow SSH
+          aws ec2 authorize-security-group-ingress \
+            --group-id "$SG_ID" \
+            --protocol tcp \
+            --port 22 \
+            --cidr 0.0.0.0/0
+        fi
+
+        echo "sg_id=$SG_ID" >> $GITHUB_OUTPUT
+
+        # Check for existing key pair
+        if ! aws ec2 describe-key-pairs --key-names "static-site-key" >/dev/null 2>&1; then
+          echo "Creating key pair..."
+          aws ec2 create-key-pair --key-name "static-site-key" --query 'KeyMaterial' --output text > key.pem
+          chmod 600 key.pem
+          echo "key_created=true" >> $GITHUB_OUTPUT
+        else
+          echo "Using existing key pair"
+          echo "key_created=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Create new instance
+      if: steps.existing.outputs.exists == 'false' || steps.force_recreate.outputs.exists == 'false'
+      id: new_instance
+      run: |
+        # Get latest Amazon Linux 2 AMI
+        AMI_ID=$(aws ec2 describe-images \
+          --owners amazon \
+          --filters "Name=name,Values=amzn2-ami-hvm-*-x86_64-gp2" \
+          --query 'Images | sort_by(@, &CreationDate) | [-1].ImageId' \
+          --output text)
+
+        # Create user data script for initial setup
+        cat > user-data.sh << 'EOF'
+        #!/bin/bash
+        yum update -y
+        amazon-linux-extras install nginx1 -y
+        systemctl start nginx
+        systemctl enable nginx
+
+        # Create deployment user and setup
+        useradd -m deploy
+        mkdir -p /home/deploy/.ssh
+        chown deploy:deploy /home/deploy/.ssh
+        chmod 700 /home/deploy/.ssh
+
+        # Allow deploy user to manage nginx and web files
+        echo "deploy ALL=(ALL) NOPASSWD: /bin/systemctl reload nginx, /bin/systemctl restart nginx, /bin/cp, /bin/rm, /bin/mkdir, /bin/chown, /bin/chmod" >> /etc/sudoers
+
+        # Create web directory
+        mkdir -p /var/www/html
+        chown -R nginx:nginx /var/www/html
+        chmod -R 755 /var/www/html
+        EOF
+
+        # Launch instance
+        INSTANCE_ID=$(aws ec2 run-instances \
+          --image-id "$AMI_ID" \
+          --count 1 \
+          --instance-type ${{ env.INSTANCE_TYPE }} \
+          --key-name "static-site-key" \
+          --security-group-ids ${{ steps.infrastructure.outputs.sg_id }} \
+          --user-data file://user-data.sh \
+          --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=${{ env.INSTANCE_NAME }}},{Key=Project,Value=github-actions-deploy},{Key=ManagedBy,Value=github-actions}]" \
+          --query 'Instances[0].InstanceId' --output text)
+
+        echo "instance_id=$INSTANCE_ID" >> $GITHUB_OUTPUT
+
+        # Wait for instance to be running
+        echo "Waiting for instance to be running..."
+        aws ec2 wait instance-running --instance-ids "$INSTANCE_ID"
+
+        # Get public IP
+        PUBLIC_IP=$(aws ec2 describe-instances \
+          --instance-ids "$INSTANCE_ID" \
+          --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
+
+        echo "public_ip=$PUBLIC_IP" >> $GITHUB_OUTPUT
+        echo "Instance created: $INSTANCE_ID"
+        echo "Public IP: $PUBLIC_IP"
+
+    - name: Prepare deployment package
+      run: |
+        # Create deployment package with all static files
+        echo "Creating deployment package..."
+        find . -name "*.html" -o -name "*.css" -o -name "*.js" -o -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" -o -name "*.gif" -o -name "*.svg" -o -name "*.ico" -o -name "*.pdf" -o -name "*.txt" | \
+        grep -v ".git" | grep -v "node_modules" | grep -v ".github" | \
+        tar -czf site.tar.gz -T -
+
+        # Create update deployment script
+        cat > update-site.sh << 'EOF'
+        #!/bin/bash
+        set -e
+
+        echo "Starting site update..."
+
+        # Backup current site
+        sudo mkdir -p /var/www/backup
+        sudo cp -r /var/www/html/* /var/www/backup/ 2>/dev/null || true
+
+        # Clear current site
+        sudo rm -rf /var/www/html/*
+
+        # Extract new site
+        cd /tmp
+        tar -xzf site.tar.gz
+
+        # Copy new files
+        sudo cp -r * /var/www/html/ 2>/dev/null || sudo cp *.html /var/www/html/
+
+        # Set permissions
+        sudo chown -R nginx:nginx /var/www/html
+        sudo chmod -R 755 /var/www/html
+
+        # Ensure nginx config is correct
+        sudo tee /etc/nginx/conf.d/static-site.conf > /dev/null << 'NGINX_EOF'
+        server {
+            listen 80;
+            server_name _;
+            root /var/www/html;
+            index index.html;
+
+            location / {
+                try_files $uri $uri/ /index.html;
+            }
+
+            # Cache static assets
+            location ~* \.(css|js|png|jpg|jpeg|gif|ico|svg)$ {
+                expires 1y;
+                add_header Cache-Control "public, immutable";
+            }
+
+            # Security headers
+            add_header X-Frame-Options "SAMEORIGIN" always;
+            add_header X-XSS-Protection "1; mode=block" always;
+            add_header X-Content-Type-Options "nosniff" always;
+        }
+        NGINX_EOF
+
+        # Test and reload nginx
+        sudo nginx -t
+        sudo systemctl reload nginx
+
+        echo "Site update completed successfully!"
+        echo "Backup available at /var/www/backup/"
+        EOF
+
+        chmod +x update-site.sh
+
+    - name: Get instance details
+      id: instance_info
+      run: |
+        # Use existing instance ID or new instance ID
+        if [ "${{ steps.existing.outputs.exists }}" = "true" ] && [ "${{ github.event.inputs.force_recreate }}" != "true" ]; then
+          INSTANCE_ID="${{ steps.existing.outputs.instance_id }}"
+          if [ "${{ steps.existing.outputs.instance_state }}" = "stopped" ]; then
+            PUBLIC_IP="${{ steps.start_stopped.outputs.public_ip }}"
+          else
+            PUBLIC_IP="${{ steps.existing.outputs.public_ip }}"
+          fi
+        else
+          INSTANCE_ID="${{ steps.new_instance.outputs.instance_id }}"
+          PUBLIC_IP="${{ steps.new_instance.outputs.public_ip }}"
+        fi
+
+        echo "instance_id=$INSTANCE_ID" >> $GITHUB_OUTPUT
+        echo "public_ip=$PUBLIC_IP" >> $GITHUB_OUTPUT
+
+    - name: Deploy to instance
+      run: |
+        PUBLIC_IP=${{ steps.instance_info.outputs.public_ip }}
+
+        # Wait for SSH to be available
+        echo "Waiting for SSH to be available..."
+        for i in {1..30}; do
+          if ssh -i key.pem -o StrictHostKeyChecking=no -o ConnectTimeout=5 ec2-user@$PUBLIC_IP "echo 'SSH ready'" 2>/dev/null; then
+            echo "SSH is ready!"
+            break
+          fi
+          echo "Attempt $i/30: SSH not ready, waiting 10 seconds..."
+          sleep 10
+        done
+
+        # Copy files to instance
+        echo "Copying deployment files..."
+        scp -i key.pem -o StrictHostKeyChecking=no site.tar.gz ec2-user@$PUBLIC_IP:/tmp/
+        scp -i key.pem -o StrictHostKeyChecking=no update-site.sh ec2-user@$PUBLIC_IP:/tmp/
+
+        # Run deployment script
+        echo "Running deployment script..."
+        ssh -i key.pem -o StrictHostKeyChecking=no ec2-user@$PUBLIC_IP "chmod +x /tmp/update-site.sh && /tmp/update-site.sh"
+
+    - name: Test deployment
+      run: |
+        PUBLIC_IP=${{ steps.instance_info.outputs.public_ip }}
+
+        # Wait for nginx to process changes
+        sleep 5
+
+        # Test the site
+        echo "Testing site availability..."
+        for i in {1..10}; do
+          if curl -f -s "http://$PUBLIC_IP" > /dev/null; then
+            echo "✅ Site is live and accessible!"
+            break
+          fi
+          echo "Attempt $i/10: Site not ready, waiting 5 seconds..."
+          sleep 5
+        done
+
+        # Get response headers for verification
+        echo "Site response headers:"
+        curl -I "http://$PUBLIC_IP" || true
+
+    - name: Output deployment info
+      run: |
+        INSTANCE_ID=${{ steps.instance_info.outputs.instance_id }}
+        PUBLIC_IP=${{ steps.instance_info.outputs.public_ip }}
+
+        if [ "${{ steps.existing.outputs.exists }}" = "true" ] && [ "${{ github.event.inputs.force_recreate }}" != "true" ]; then
+          echo "🔄 Site Update Summary"
+          echo "====================="
+          echo "Updated existing instance: $INSTANCE_ID"
+        else
+          echo "🚀 New Deployment Summary"
+          echo "========================="
+          echo "Created new instance: $INSTANCE_ID"
+        fi
+
+        echo "Public IP: $PUBLIC_IP"
+        echo "Site URL: http://$PUBLIC_IP"
+        echo ""
+        echo "Your static site is now live! 🎉"
+        echo ""
+        echo "💡 Tips:"
+        echo "- Future pushes will update the same instance"
+        echo "- Instance will persist between deployments"
+        echo "- Use 'Force recreate' option to start fresh"
+
+    - name: Cleanup temporary files
+      if: always()
+      run: |
+        rm -f key.pem user-data.sh site.tar.gz update-site.sh || true

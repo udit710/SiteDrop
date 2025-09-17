@@ -1,0 +1,177 @@
+name: Manage EC2 Instance
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        type: choice
+        options:
+          - 'stop'
+          - 'start'
+          - 'restart'
+          - 'terminate'
+          - 'status'
+        default: 'status'
+
+env:
+  AWS_REGION: us-east-1
+  INSTANCE_NAME: static-site-host
+
+jobs:
+  manage:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Find instance
+      id: find
+      run: |
+        INSTANCE_DATA=$(aws ec2 describe-instances \
+          --filters "Name=tag:Name,Values=${{ env.INSTANCE_NAME }}" \
+                   "Name=instance-state-name,Values=running,pending,stopping,stopped" \
+          --query 'Reservations[0].Instances[0].[InstanceId,State.Name,PublicIpAddress,InstanceType]' \
+          --output text 2>/dev/null || echo "None None None None")
+
+        INSTANCE_ID=$(echo $INSTANCE_DATA | cut -f1)
+        INSTANCE_STATE=$(echo $INSTANCE_DATA | cut -f2)
+        PUBLIC_IP=$(echo $INSTANCE_DATA | cut -f3)
+        INSTANCE_TYPE=$(echo $INSTANCE_DATA | cut -f4)
+
+        if [ "$INSTANCE_ID" != "None" ] && [ "$INSTANCE_ID" != "" ]; then
+          echo "instance_id=$INSTANCE_ID" >> $GITHUB_OUTPUT
+          echo "instance_state=$INSTANCE_STATE" >> $GITHUB_OUTPUT
+          echo "public_ip=$PUBLIC_IP" >> $GITHUB_OUTPUT
+          echo "instance_type=$INSTANCE_TYPE" >> $GITHUB_OUTPUT
+          echo "exists=true" >> $GITHUB_OUTPUT
+        else
+          echo "exists=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Show status
+      if: steps.find.outputs.exists == 'true'
+      run: |
+        echo "📊 Instance Status"
+        echo "=================="
+        echo "Instance ID: ${{ steps.find.outputs.instance_id }}"
+        echo "State: ${{ steps.find.outputs.instance_state }}"
+        echo "Type: ${{ steps.find.outputs.instance_type }}"
+        echo "Public IP: ${{ steps.find.outputs.public_ip }}"
+
+        if [ "${{ steps.find.outputs.public_ip }}" != "None" ] && [ "${{ steps.find.outputs.instance_state }}" = "running" ]; then
+          echo "Site URL: http://${{ steps.find.outputs.public_ip }}"
+
+          # Test if site is accessible
+          if curl -f -s "http://${{ steps.find.outputs.public_ip }}" > /dev/null; then
+            echo "✅ Site is accessible"
+          else
+            echo "❌ Site is not accessible"
+          fi
+        fi
+
+    - name: No instance found
+      if: steps.find.outputs.exists == 'false'
+      run: |
+        echo "❌ No instance found with name: ${{ env.INSTANCE_NAME }}"
+        echo "Run the deploy workflow to create an instance."
+        exit 1
+
+    - name: Stop instance
+      if: github.event.inputs.action == 'stop' && steps.find.outputs.exists == 'true'
+      run: |
+        if [ "${{ steps.find.outputs.instance_state }}" = "running" ]; then
+          echo "Stopping instance..."
+          aws ec2 stop-instances --instance-ids ${{ steps.find.outputs.instance_id }}
+          echo "✅ Stop command sent. Instance will stop shortly."
+          echo "💡 This will save costs while preserving your data."
+        else
+          echo "Instance is not running (current state: ${{ steps.find.outputs.instance_state }})"
+        fi
+
+    - name: Start instance
+      if: github.event.inputs.action == 'start' && steps.find.outputs.exists == 'true'
+      run: |
+        if [ "${{ steps.find.outputs.instance_state }}" = "stopped" ]; then
+          echo "Starting instance..."
+          aws ec2 start-instances --instance-ids ${{ steps.find.outputs.instance_id }}
+          echo "Waiting for instance to be running..."
+          aws ec2 wait instance-running --instance-ids ${{ steps.find.outputs.instance_id }}
+
+          # Get new public IP
+          NEW_PUBLIC_IP=$(aws ec2 describe-instances \
+            --instance-ids ${{ steps.find.outputs.instance_id }} \
+            --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
+
+          echo "✅ Instance started successfully!"
+          echo "New public IP: $NEW_PUBLIC_IP"
+          echo "Site URL: http://$NEW_PUBLIC_IP"
+        else
+          echo "Instance is not stopped (current state: ${{ steps.find.outputs.instance_state }})"
+        fi
+
+    - name: Restart instance
+      if: github.event.inputs.action == 'restart' && steps.find.outputs.exists == 'true'
+      run: |
+        if [ "${{ steps.find.outputs.instance_state }}" = "running" ]; then
+          echo "Restarting instance..."
+          aws ec2 reboot-instances --instance-ids ${{ steps.find.outputs.instance_id }}
+          echo "✅ Restart command sent. Instance will reboot shortly."
+          echo "💡 The public IP will remain the same after restart."
+        else
+          echo "Instance is not running (current state: ${{ steps.find.outputs.instance_state }})"
+          echo "Use 'start' action instead."
+        fi
+
+    - name: Terminate instance
+      if: github.event.inputs.action == 'terminate' && steps.find.outputs.exists == 'true'
+      run: |
+        echo "⚠️  TERMINATING INSTANCE - THIS CANNOT BE UNDONE!"
+        echo "Instance ID: ${{ steps.find.outputs.instance_id }}"
+        echo "This will permanently destroy the instance and all data."
+
+        aws ec2 terminate-instances --instance-ids ${{ steps.find.outputs.instance_id }}
+        echo "✅ Terminate command sent."
+        echo "💡 The instance and all data will be permanently deleted."
+        echo "💡 Security groups and key pairs will remain for future use."
+
+    - name: Cost information
+      if: steps.find.outputs.exists == 'true'
+      run: |
+        echo ""
+        echo "💰 Cost Information"
+        echo "==================="
+
+        case "${{ steps.find.outputs.instance_type }}" in
+          "t2.micro")
+            echo "Instance type: t2.micro (Free tier eligible)"
+            echo "Cost when running: ~$0.0116/hour (~$8.50/month)"
+            echo "Cost when stopped: ~$1/month (EBS storage only)"
+            ;;
+          "t2.small")
+            echo "Instance type: t2.small"
+            echo "Cost when running: ~$0.023/hour (~$17/month)"
+            echo "Cost when stopped: ~$1/month (EBS storage only)"
+            ;;
+          "t3.micro")
+            echo "Instance type: t3.micro"
+            echo "Cost when running: ~$0.0104/hour (~$7.60/month)"
+            echo "Cost when stopped: ~$1/month (EBS storage only)"
+            ;;
+          *)
+            echo "Instance type: ${{ steps.find.outputs.instance_type }}"
+            echo "Check AWS pricing for exact costs"
+            ;;
+        esac
+
+        echo ""
+        echo "💡 Tips to save money:"
+        echo "- Stop the instance when not needed (keeps data, stops compute charges)"
+        echo "- Use t2.micro for free tier eligibility"
+        echo "- Terminate if you no longer need the site (destroys everything)"

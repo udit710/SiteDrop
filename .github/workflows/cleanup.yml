@@ -1,0 +1,60 @@
+name: Cleanup EC2 Resources
+
+on:
+  workflow_dispatch:
+    inputs:
+      instance_id:
+        description: 'EC2 Instance ID to terminate'
+        required: true
+        type: string
+      security_group_id:
+        description: 'Security Group ID to delete (optional)'
+        required: false
+        type: string
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Terminate EC2 instance
+      run: |
+        echo "Terminating instance: ${{ github.event.inputs.instance_id }}"
+        aws ec2 terminate-instances --instance-ids ${{ github.event.inputs.instance_id }}
+
+        echo "Waiting for instance to terminate..."
+        aws ec2 wait instance-terminated --instance-ids ${{ github.event.inputs.instance_id }}
+
+        echo "✅ Instance terminated successfully"
+
+    - name: Delete security group
+      if: github.event.inputs.security_group_id != ''
+      run: |
+        echo "Deleting security group: ${{ github.event.inputs.security_group_id }}"
+
+        # Wait a moment for instance to fully terminate
+        sleep 30
+
+        aws ec2 delete-security-group --group-id ${{ github.event.inputs.security_group_id }}
+        echo "✅ Security group deleted successfully"
+
+    - name: Cleanup summary
+      run: |
+        echo "🧹 Cleanup Summary"
+        echo "=================="
+        echo "Terminated instance: ${{ github.event.inputs.instance_id }}"
+        if [ -n "${{ github.event.inputs.security_group_id }}" ]; then
+          echo "Deleted security group: ${{ github.event.inputs.security_group_id }}"
+        fi
+        echo ""
+        echo "Resources have been cleaned up to avoid ongoing costs."
