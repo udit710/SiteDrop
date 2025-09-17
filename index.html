@@ -3,70 +3,51 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Welcome to Your Static Site</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 2rem;
-            line-height: 1.6;
-            color: #333;
-        }
-        .header {
-            text-align: center;
-            margin-bottom: 3rem;
-        }
-        .badge {
-            background: #28a745;
-            color: white;
-            padding: 0.5rem 1rem;
-            border-radius: 20px;
-            font-size: 0.9rem;
-            display: inline-block;
-            margin-bottom: 1rem;
-        }
-        .instructions {
-            background: #f8f9fa;
-            padding: 2rem;
-            border-radius: 8px;
-            border-left: 4px solid #007bff;
-        }
-        code {
-            background: #e9ecef;
-            padding: 0.2rem 0.4rem;
-            border-radius: 3px;
-            font-family: 'Monaco', 'Consolas', monospace;
-        }
-    </style>
+    <title>John Doe - Portfolio</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="header">
-        <div class="badge">✅ Deployment Successful</div>
-        <h1>Your Static Site is Live!</h1>
-        <p>This is the default page. Replace this <code>index.html</code> with your own content.</p>
-    </div>
+    <header>
+        <nav>
+            <h1>John Doe</h1>
+            <ul>
+                <li><a href="#about">About</a></li>
+                <li><a href="#projects">Projects</a></li>
+                <li><a href="#contact">Contact</a></li>
+            </ul>
+        </nav>
+    </header>
 
-    <div class="instructions">
-        <h2>Next Steps</h2>
-        <ol>
-            <li>Replace this <code>index.html</code> file with your own</li>
-            <li>Add any additional static files (CSS, JS, images) to the repository</li>
-            <li>Commit and push to the main branch</li>
-            <li>GitHub Actions will automatically redeploy your site</li>
-        </ol>
+    <main>
+        <section id="hero">
+            <h2>Full Stack Developer</h2>
+            <p>Building amazing web experiences</p>
+        </section>
 
-        <h3>Repository Structure</h3>
-        <pre><code>your-repo/
-├── index.html          (your main page)
-├── css/               (stylesheets)
-├── js/                (javascript files)
-├── images/            (images and assets)
-└── .github/workflows/ (deployment automation)</code></pre>
-    </div>
+        <section id="about">
+            <h2>About Me</h2>
+            <p>I'm a passionate developer with experience in modern web technologies.</p>
+        </section>
 
-    <footer style="text-align: center; margin-top: 3rem; color: #666;">
-        <p>Powered by AWS EC2 + GitHub Actions</p>
-    </footer>
+        <section id="projects">
+            <h2>Projects</h2>
+            <div class="project-grid">
+                <div class="project">
+                    <h3>Project 1</h3>
+                    <p>Description of your first project</p>
+                </div>
+                <div class="project">
+                    <h3>Project 2</h3>
+                    <p>Description of your second project</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="contact">
+            <h2>Contact</h2>
+            <p>Email: [email]</p>
+            <p>GitHub: [github_username]</p>
+        </section>
+    </main>
 </body>
 </html>
