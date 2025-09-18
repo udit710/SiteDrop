@@ -5,7 +5,7 @@ A modern, automated solution for hosting static websites on AWS EC2 using **Terr
 ## ✨ Key Features
 
 - **🏗️ Infrastructure as Code**: Terraform manages all AWS resources (EC2, Security Groups, Elastic IP)
-- **🐳 Docker-Powered**: Containerized deployments for consistency and reliability  
+- **🐳 Docker-Powered**: Containerized deployments for consistency and reliability
 - **🔄 Zero-Downtime**: Rolling updates with automatic health checks and rollbacks
 - **💰 Cost Efficient**: t3.micro instances (Free tier eligible) with smart management
 - **🚀 Developer Friendly**: Simple fork-and-deploy workflow for teams
@@ -15,7 +15,7 @@ A modern, automated solution for hosting static websites on AWS EC2 using **Terr
 ## Quick Start
 
 1. **Fork this repository**
-2. **Set up AWS credentials** in GitHub Secrets  
+2. **Set up AWS credentials** in GitHub Secrets
 3. **Run the deployment workflow** to create infrastructure
 4. **Push changes** to automatically deploy updates
 
@@ -40,7 +40,7 @@ Your site will be live with a static IP address!
 
 - **Terraform**: Manages infrastructure separately from application code
 - **Docker**: Ensures consistent deployments across environments
-- **GitHub Actions**: Automates the entire deployment pipeline  
+- **GitHub Actions**: Automates the entire deployment pipeline
 - **Elastic IP**: Your site keeps the same IP address forever
 - **Separation of Concerns**: Infrastructure, deployment, and application are managed independently
 
@@ -66,14 +66,14 @@ AWS_SECRET_ACCESS_KEY=your_secret_key_here
 
 Your AWS user/role needs these permissions:
 - `EC2FullAccess` (manage instances, security groups, key pairs)
-- `VPCFullAccess` (network management)  
+- `VPCFullAccess` (network management)
 - `ElasticIPManagement` (static IP allocation)
 
 ### Step 2: First Deployment
 
 1. Go to **Actions** tab in your GitHub repository
 2. Select **"Deploy with Terraform and Docker"**
-3. Click **"Run workflow"** 
+3. Click **"Run workflow"**
 4. Wait for completion (~5 minutes)
 5. Your site will be live at the IP shown in the workflow output
 
@@ -82,7 +82,7 @@ Your AWS user/role needs these permissions:
 ### 🔄 Updating Your Site
 
 1. Edit `index.html` or any files in your repository
-2. Commit and push to main branch  
+2. Commit and push to main branch
 3. GitHub Actions automatically deploys changes
 4. Zero-downtime update via Docker containers
 
@@ -94,7 +94,7 @@ Use the **"Manage Terraform Infrastructure"** workflow for:
 |--------|-------------|-------------|
 | **status** | Check instance and container health | Regular monitoring |
 | **restart-container** | Restart Docker container (zero-downtime) | App issues, config changes |
-| **stop-instance** | Stop EC2 to save costs (preserves data) | Cost optimization |  
+| **stop-instance** | Stop EC2 to save costs (preserves data) | Cost optimization |
 | **start-instance** | Start stopped instance | Resume after cost savings |
 | **restart-instance** | Reboot the server | System-level issues |
 | **destroy-infrastructure** | ⚠️ Delete everything (PERMANENT) | Project cleanup |
@@ -103,7 +103,7 @@ Use the **"Manage Terraform Infrastructure"** workflow for:
 
 Your deployed site includes:
 - **Website**: `http://YOUR_IP/`
-- **Health endpoint**: `http://YOUR_IP/health`  
+- **Health endpoint**: `http://YOUR_IP/health`
 - **Container status**: Available via management workflows
 - **Automatic monitoring**: Built into all deployments
 
@@ -111,7 +111,7 @@ Your deployed site includes:
 
 ```
 ├── .github/workflows/         # GitHub Actions workflows
-│   ├── terraform-deploy.yml   # Main deployment workflow  
+│   ├── terraform-deploy.yml   # Main deployment workflow
 │   └── terraform-manage.yml   # Instance management
 ├── terraform/                 # Infrastructure as Code
 │   ├── main.tf               # Main Terraform configuration
@@ -122,7 +122,7 @@ Your deployed site includes:
 │   ├── deploy.sh             # Application deployment script
 │   └── manage.sh             # Container management script
 ├── css/                      # Stylesheets
-├── js/                       # JavaScript files  
+├── js/                       # JavaScript files
 ├── images/                   # Image assets
 ├── examples/                 # Example projects
 └── index.html               # Your website content
@@ -161,7 +161,7 @@ ssh -i your-key.pem ec2-user@YOUR_ELASTIC_IP
 cd /opt/static-site
 ./deploy.sh
 
-# Check deployment status  
+# Check deployment status
 ./deploy.sh status
 
 # Rollback to previous version
@@ -179,7 +179,7 @@ terraform plan
 # Apply changes
 terraform apply
 
-# Destroy infrastructure  
+# Destroy infrastructure
 terraform destroy
 ```
 
@@ -216,14 +216,14 @@ terraform destroy
 ### Debugging Steps
 
 1. **Check workflow logs** in GitHub Actions tab
-2. **Use management workflow** to check instance status  
+2. **Use management workflow** to check instance status
 3. **SSH to instance** for manual debugging:
 
 ```bash
 # Check Docker status
 docker ps -a
 
-# Check nginx status  
+# Check nginx status
 curl localhost:8080
 
 # Check system logs
@@ -246,7 +246,7 @@ The system includes comprehensive health checks:
 - ✅ **Minimal attack surface**: Only required ports open (80, 443, 22)
 - ✅ **Infrastructure as Code**: Auditable and versioned
 - ✅ **Automated updates**: Regular security patches via deployment
-- ✅ **Container isolation**: Docker provides process isolation  
+- ✅ **Container isolation**: Docker provides process isolation
 - ✅ **SSH key management**: Automated key generation and cleanup
 - ✅ **Network security**: VPC and security group isolation
 
@@ -269,7 +269,7 @@ docker run -p 8080:80 -v $(pwd):/usr/share/nginx/html:ro nginx:alpine
 
 1. **Content**: Edit `index.html`, CSS, and JS files
 2. **Infrastructure**: Modify `terraform/*.tf` files
-3. **Deployment**: Customize `scripts/*.sh` files  
+3. **Deployment**: Customize `scripts/*.sh` files
 4. **Workflows**: Update `.github/workflows/*.yml` files
 
 ### Testing Changes
@@ -283,7 +283,7 @@ docker run -p 8080:80 -v $(pwd):/usr/share/nginx/html:ro nginx:alpine
 
 Check the [examples/](examples/) directory for:
 - Simple portfolio sites
-- Multi-page websites  
+- Multi-page websites
 - Custom CSS/JS examples
 - Integration patterns
 
@@ -294,7 +294,7 @@ Check the [examples/](examples/) directory for:
 If you're upgrading from a previous version:
 
 1. **Backup your data**: Export current site files
-2. **Run destroy workflow**: Clean up old infrastructure  
+2. **Run destroy workflow**: Clean up old infrastructure
 3. **Update repository**: Pull latest Terraform version
 4. **Redeploy**: Use new Terraform-based workflows
 
@@ -307,26 +307,26 @@ If you're upgrading from a previous version:
 
 ## FAQ
 
-**Q: Can I use my own domain name?**  
+**Q: Can I use my own domain name?**
 A: Yes! Point your domain's A record to the Elastic IP address.
 
-**Q: How do I add SSL/HTTPS?**  
+**Q: How do I add SSL/HTTPS?**
 A: Use AWS Certificate Manager + CloudFront or Let's Encrypt on the instance.
 
-**Q: Can I deploy multiple sites?**  
+**Q: Can I deploy multiple sites?**
 A: Yes! Use different project names in Terraform variables.
 
-**Q: What if I need more resources?**  
+**Q: What if I need more resources?**
 A: Modify `instance_type` in `terraform/variables.tf` (e.g., t3.small).
 
-**Q: How do I backup my site?**  
+**Q: How do I backup my site?**
 A: Automatic backups are created on each deployment. Use EBS snapshots for full backups.
 
 ## Contributing
 
 We welcome contributions! Please:
 
-1. Fork the repository  
+1. Fork the repository
 2. Create a feature branch: `git checkout -b feature-name`
 3. Test your changes thoroughly
 4. Submit a pull request with detailed description
@@ -339,7 +339,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
 ## Support & Community
 
 - 📚 **Documentation**: This README + inline code comments
-- 🐛 **Bug Reports**: Submit GitHub issues with full details  
+- 🐛 **Bug Reports**: Submit GitHub issues with full details
 - 💡 **Feature Requests**: Create issues with use case descriptions
 - 🆘 **Help**: Check workflow logs for detailed error messages
 - 💬 **Discussions**: Use GitHub Discussions for questions

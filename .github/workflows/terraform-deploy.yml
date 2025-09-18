@@ -1,0 +1,242 @@
+name: Deploy with Terraform and Docker
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      terraform_action:
+        description: 'Terraform action to perform'
+        required: true
+        default: 'apply'
+        type: choice
+        options:
+        - apply
+        - destroy
+        - plan
+      instance_type:
+        description: 'EC2 instance type'
+        required: false
+        default: 't3.micro'
+        type: choice
+        options:
+        - t2.micro
+        - t3.micro
+        - t3.small
+        - t3.medium
+
+env:
+  AWS_REGION: us-east-1
+  TF_VAR_project_name: ${{ github.event.repository.name }}-docker
+  TF_VAR_instance_type: ${{ github.event.inputs.instance_type || 't3.micro' }}
+  TF_VAR_environment: production
+  TF_VAR_deployment_dir: /opt/static-site
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    outputs:
+      instance_ip: ${{ steps.terraform_output.outputs.public_ip }}
+      instance_id: ${{ steps.terraform_output.outputs.instance_id }}
+      website_url: ${{ steps.terraform_output.outputs.website_url }}
+      ssh_command: ${{ steps.terraform_output.outputs.ssh_command }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: "~1.0"
+        terraform_wrapper: false
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Generate SSH key pair for deployment
+      id: ssh_key
+      run: |
+        # Generate SSH key pair for instance access
+        ssh-keygen -t rsa -b 4096 -f deploy_key -N ""
+        echo "TF_VAR_ssh_public_key=$(cat deploy_key.pub)" >> $GITHUB_ENV
+
+        # Store private key for deployment step
+        echo "SSH_PRIVATE_KEY<<EOF" >> $GITHUB_OUTPUT
+        cat deploy_key >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+    - name: Terraform Init
+      working-directory: terraform
+      run: terraform init
+
+    - name: Terraform Plan
+      working-directory: terraform
+      run: terraform plan -out=tfplan
+
+    - name: Terraform Apply
+      if: github.event.inputs.terraform_action != 'destroy' && github.event.inputs.terraform_action != 'plan'
+      working-directory: terraform
+      run: terraform apply -auto-approve tfplan
+
+    - name: Terraform Destroy
+      if: github.event.inputs.terraform_action == 'destroy'
+      working-directory: terraform
+      run: terraform destroy -auto-approve
+
+    - name: Get Terraform Outputs
+      if: github.event.inputs.terraform_action != 'destroy' && github.event.inputs.terraform_action != 'plan'
+      working-directory: terraform
+      id: terraform_output
+      run: |
+        echo "public_ip=$(terraform output -raw public_ip)" >> $GITHUB_OUTPUT
+        echo "instance_id=$(terraform output -raw instance_id)" >> $GITHUB_OUTPUT
+        echo "website_url=$(terraform output -raw website_url)" >> $GITHUB_OUTPUT
+        echo "ssh_command=$(terraform output -raw ssh_command)" >> $GITHUB_OUTPUT
+
+    - name: Save SSH key for deployment
+      if: github.event.inputs.terraform_action != 'destroy' && github.event.inputs.terraform_action != 'plan'
+      run: |
+        # Save SSH private key as artifact for deployment job
+        echo "${{ steps.ssh_key.outputs.SSH_PRIVATE_KEY }}" > deploy_key
+        chmod 600 deploy_key
+
+    - name: Upload SSH key
+      if: github.event.inputs.terraform_action != 'destroy' && github.event.inputs.terraform_action != 'plan'
+      uses: actions/upload-artifact@v4
+      with:
+        name: ssh-key
+        path: deploy_key
+        retention-days: 1
+
+  deploy:
+    needs: terraform
+    runs-on: ubuntu-latest
+    if: github.event.inputs.terraform_action != 'destroy' && github.event.inputs.terraform_action != 'plan'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download SSH key
+      uses: actions/download-artifact@v4
+      with:
+        name: ssh-key
+
+    - name: Setup SSH key
+      run: |
+        chmod 600 deploy_key
+        eval $(ssh-agent -s)
+        ssh-add deploy_key
+
+    - name: Wait for instance to be ready
+      run: |
+        echo "⏳ Waiting for instance to complete initialization..."
+        INSTANCE_IP="${{ needs.terraform.outputs.instance_ip }}"
+
+        # Wait for SSH to be available
+        for i in {1..30}; do
+          if ssh -i deploy_key -o StrictHostKeyChecking=no -o ConnectTimeout=10 ec2-user@$INSTANCE_IP "echo 'SSH ready'" 2>/dev/null; then
+            echo "✅ SSH is ready!"
+            break
+          fi
+          echo "Attempt $i/30: SSH not ready, waiting 30 seconds..."
+          sleep 30
+        done
+
+        # Wait for Docker and nginx to be ready
+        for i in {1..20}; do
+          if ssh -i deploy_key -o StrictHostKeyChecking=no ec2-user@$INSTANCE_IP "docker --version && systemctl is-active nginx" 2>/dev/null; then
+            echo "✅ Docker and nginx are ready!"
+            break
+          fi
+          echo "Attempt $i/20: Services not ready, waiting 15 seconds..."
+          sleep 15
+        done
+
+    - name: Create deployment package
+      run: |
+        echo "📦 Creating deployment package..."
+        # Create deployment archive excluding unnecessary files
+        tar -czf deployment.tar.gz \
+          --exclude='.git*' \
+          --exclude='terraform/' \
+          --exclude='*.tar.gz' \
+          --exclude='deploy_key*' \
+          --exclude='.github/' \
+          .
+
+    - name: Deploy to instance
+      run: |
+        INSTANCE_IP="${{ needs.terraform.outputs.instance_ip }}"
+
+        echo "🚀 Deploying to instance: $INSTANCE_IP"
+
+        # Upload deployment package
+        echo "📤 Uploading files..."
+        scp -i deploy_key -o StrictHostKeyChecking=no deployment.tar.gz ec2-user@$INSTANCE_IP:/opt/static-site/
+
+        # Deploy using the deployment script
+        echo "🔄 Extracting and deploying..."
+        ssh -i deploy_key -o StrictHostKeyChecking=no ec2-user@$INSTANCE_IP << 'DEPLOY_EOF'
+        set -e
+        cd /opt/static-site
+
+        # Extract new files
+        tar -xzf deployment.tar.gz
+
+        # Run deployment script
+        ./deploy.sh
+        DEPLOY_EOF
+
+    - name: Verify deployment
+      run: |
+        INSTANCE_IP="${{ needs.terraform.outputs.instance_ip }}"
+        WEBSITE_URL="${{ needs.terraform.outputs.website_url }}"
+
+        echo "🧪 Verifying deployment..."
+
+        # Wait a moment for services to be ready
+        sleep 10
+
+        # Test the health endpoint
+        for i in {1..10}; do
+          if curl -f -s "$WEBSITE_URL/health" > /dev/null; then
+            echo "✅ Health check passed!"
+            break
+          fi
+          echo "Attempt $i/10: Health check failed, waiting 5 seconds..."
+          sleep 5
+        done
+
+        # Test the main site
+        if curl -f -s "$WEBSITE_URL" > /dev/null; then
+          echo "✅ Website is accessible!"
+        else
+          echo "❌ Website test failed"
+          exit 1
+        fi
+
+    - name: Deployment Summary
+      run: |
+        echo "🎉 Deployment completed successfully!"
+        echo "======================================"
+        echo "🌐 Website URL: ${{ needs.terraform.outputs.website_url }}"
+        echo "🏥 Health Check: ${{ needs.terraform.outputs.website_url }}/health"
+        echo "🖥️  Instance IP: ${{ needs.terraform.outputs.instance_ip }}"
+        echo "🔧 SSH Access: ${{ needs.terraform.outputs.ssh_command }}"
+        echo ""
+        echo "📊 Container Status:"
+
+        # Show container status
+        ssh -i deploy_key -o StrictHostKeyChecking=no ec2-user@${{ needs.terraform.outputs.instance_ip }} \
+          "cd /opt/static-site && ./manage.sh status" || echo "Could not retrieve container status"
+
+    - name: Cleanup
+      if: always()
+      run: |
+        rm -f deploy_key deployment.tar.gz
