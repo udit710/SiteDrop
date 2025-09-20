@@ -25,4 +25,4 @@ jobs:
       run: |
         cd infra
         terraform init
-        terraform destroy -auto-approve -var="bucket_name=${{ github.repository_owner }}-sitedrop"
+        terraform destroy -auto-approve
