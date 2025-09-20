@@ -119,13 +119,32 @@ jobs:
       - name: Update repo website
         env:
           GH_PAT: ${{ secrets.GH_PAT }}
-          LIVE_URL: ${{ steps.terraform-outputs.outputs.cloudfront_url }}
         run: |
           REPO_OWNER=${{ github.repository_owner }}
           REPO_NAME=${{ github.event.repository.name }}
+          URL=$(cd infra && terraform output -raw cloudfront_url)
 
-          curl -X PATCH \
+          # Get current repository description
+          CURRENT_DESC=$(curl -s \
             -H "Authorization: token $GH_PAT" \
             -H "Accept: application/vnd.github+json" \
-            https://api.github.com/repos/$REPO_OWNER/$REPO_NAME \
-            -d "{\"homepage\": \"$LIVE_URL\"}"
+            https://api.github.com/repos/$REPO_OWNER/$REPO_NAME | jq -r '.description // ""')
+
+          # Check if URL is already in description to avoid duplicates
+          if [[ "$CURRENT_DESC" == *"https://$URL"* ]]; then
+            echo "URL already exists in description: $CURRENT_DESC"
+          else
+            # Append URL to current description
+            if [ -z "$CURRENT_DESC" ] || [ "$CURRENT_DESC" = "null" ]; then
+              NEW_DESC="🚀 Live at: https://$URL"
+            else
+              NEW_DESC="$CURRENT_DESC | 🚀 Live at: https://$URL"
+            fi
+
+            echo "Updating description to: $NEW_DESC"
+            curl -X PATCH \
+              -H "Authorization: token $GH_PAT" \
+              -H "Accept: application/vnd.github+json" \
+              https://api.github.com/repos/$REPO_OWNER/$REPO_NAME \
+              -d "{\"description\": \"$NEW_DESC\"}"
+          fi
