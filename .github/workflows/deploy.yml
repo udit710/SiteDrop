@@ -22,39 +22,45 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
-      - name: Check if this is first deployment
+      - name: Check if state bucket exists
         id: check-state
         run: |
           cd infra
-          # Try to check if state bucket exists
-          if aws s3 ls "s3://terraform-state-sitedrop-*" 2>/dev/null; then
-            echo "first_deploy=false" >> $GITHUB_OUTPUT
+          # Check if any terraform state bucket exists for this project
+          if aws s3api list-buckets --query "Buckets[?contains(Name, 'terraform-state-sitedrop')].Name" --output text | grep -q terraform-state-sitedrop; then
+            echo "state_exists=true" >> $GITHUB_OUTPUT
             # Get the actual bucket name
-            BUCKET=$(aws s3api list-buckets --query "Buckets[?contains(Name, 'terraform-state-sitedrop')].Name" --output text)
+            BUCKET=$(aws s3api list-buckets --query "Buckets[?contains(Name, 'terraform-state-sitedrop')].Name" --output text | head -n1)
             echo "state_bucket=$BUCKET" >> $GITHUB_OUTPUT
           else
-            echo "first_deploy=true" >> $GITHUB_OUTPUT
+            echo "state_exists=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: First time setup (create state backend)
-        if: steps.check-state.outputs.first_deploy == 'true'
+      - name: Bootstrap - Create state infrastructure
+        if: steps.check-state.outputs.state_exists == 'false'
         run: |
           cd infra
-          # Initialize without backend first
+          # First run without backend to create state bucket
           terraform init
-
-          # Create state management resources
-          terraform apply -target=aws_s3_bucket.terraform_state -target=aws_dynamodb_table.terraform_state_lock -target=random_id.bucket_suffix -auto-approve
-
-          # Get the created bucket name
-          STATE_BUCKET=$(terraform output -raw terraform_state_bucket)
-          echo "STATE_BUCKET=$STATE_BUCKET" >> $GITHUB_ENV
-
-          # Create backend configuration
+          
+          # Create only the state management resources
+          terraform apply -target=aws_s3_bucket.terraform_state \
+                          -target=aws_s3_bucket_versioning.terraform_state \
+                          -target=aws_s3_bucket_server_side_encryption_configuration.terraform_state \
+                          -target=aws_s3_bucket_public_access_block.terraform_state \
+                          -target=aws_dynamodb_table.terraform_state_lock \
+                          -target=random_id.bucket_suffix \
+                          -auto-approve
+          
+          # Get the actual bucket name that was created
+          ACTUAL_BUCKET=$(terraform output -raw terraform_state_bucket)
+          echo "Created state bucket: $ACTUAL_BUCKET"
+          
+          # Now create the backend configuration
           cat > backend.tf << EOF
           terraform {
             backend "s3" {
-              bucket         = "$STATE_BUCKET"
+              bucket         = "$ACTUAL_BUCKET"
               key            = "infrastructure/terraform.tfstate"
               region         = "us-east-1"
               dynamodb_table = "terraform-state-lock-sitedrop"
@@ -62,12 +68,12 @@ jobs:
             }
           }
           EOF
-
-          # Migrate state to remote backend
+          
+          # Migrate local state to remote backend
           terraform init -migrate-state -force-copy
 
-      - name: Terraform Init (existing deployment)
-        if: steps.check-state.outputs.first_deploy == 'false'
+      - name: Initialize with existing backend
+        if: steps.check-state.outputs.state_exists == 'true'
         run: |
           cd infra
           # Create backend configuration with existing bucket
@@ -82,7 +88,7 @@ jobs:
             }
           }
           EOF
-
+          
           terraform init
 
       - name: Terraform Plan
@@ -103,12 +109,9 @@ jobs:
       - name: Invalidate CloudFront cache
         run: |
           DIST_ID=$(cd infra && terraform output -raw cloudfront_id)
-          echo "Invalidating CloudFront distribution: $DIST_ID"
-
-          aws cloudfront wait distribution-deployed --id $DIST_ID
           aws cloudfront create-invalidation --distribution-id $DIST_ID --paths "/*"
 
       - name: Show live URL
         run: |
           URL=$(cd infra && terraform output -raw cloudfront_url)
-          echo "Live site URL: https://$URL"
+          echo "🚀 Live site URL: https://$URL"
