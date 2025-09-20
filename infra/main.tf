@@ -3,10 +3,6 @@ resource "aws_s3_bucket" "terraform_state" {
   bucket        = "terraform-state-sitedrop-${random_id.bucket_suffix.hex}"
   force_destroy = true
 
-  lifecycle {
-    prevent_destroy = true
-  }
-
   tags = {
     Name        = "Terraform State Bucket"
     Environment = "infrastructure"
@@ -53,10 +49,6 @@ resource "aws_dynamodb_table" "terraform_state_lock" {
   attribute {
     name = "LockID"
     type = "S"
-  }
-
-  lifecycle {
-    prevent_destroy = true
   }
 
   tags = {
