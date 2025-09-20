@@ -32,16 +32,16 @@ jobs:
 
           # Create backend configuration
           cat > backend.tf << EOF
-          terraform {
-            backend "s3" {
-              bucket         = "$BUCKET"
-              key            = "infrastructure/terraform.tfstate"
-              region         = "us-east-1"
-              dynamodb_table = "terraform-state-lock-sitedrop"
-              encrypt        = true
-            }
+        terraform {
+          backend "s3" {
+            bucket         = "$BUCKET"
+            key            = "infrastructure/terraform.tfstate"
+            region         = "us-east-1"
+            dynamodb_table = "terraform-state-lock-sitedrop"
+            encrypt        = true
           }
-          EOF
+        }
+        EOF
 
           # Initialize with remote state
           terraform init
