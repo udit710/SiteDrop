@@ -2,44 +2,49 @@ name: Deploy SiteDrop
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: us-east-1
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
 
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
 
-    - name: Terraform Init
-      run: |
-        cd infra
-        terraform init
+      - name: Terraform Init
+        run: |
+          cd infra
+          terraform init
 
-    - name: Terraform Apply
-      run: |
-        cd infra
-        terraform apply -auto-approve -var="bucket_name=${{ github.repository_owner }}-auto-site-dropped"
+      - name: Terraform Apply
+        run: |
+          cd infra
+          terraform apply -auto-approve -var="bucket_name=${{ github.repository_owner }}-automatic-site-drop"
 
-    - name: Upload static site files
-      run: |
-        BUCKET=$(cd infra && terraform output -raw s3_bucket)
-        aws s3 sync ./site s3://$BUCKET --delete
+      - name: Upload static site files
+        run: |
+          BUCKET=$(cd infra && terraform output -raw s3_bucket)
+          aws s3 sync ./site s3://$BUCKET --delete
 
-    - name: Invalidate CloudFront cache
-      run: |
-        DIST_ID=$(cd infra && terraform output -raw cloudfront_url | cut -d'.' -f1)
-        aws cloudfront create-invalidation \
-          --distribution-id $DIST_ID \
-          --paths "/*"
+      - name: Invalidate CloudFront cache
+        run: |
+          DIST_ID=$(cd infra && terraform output -raw cloudfront_id)
+          echo "Invalidating CloudFront distribution: $DIST_ID"
+
+          # Optional: wait until distribution is deployed
+          aws cloudfront wait distribution-deployed --id $DIST_ID
+
+          aws cloudfront create-invalidation \
+            --distribution-id $DIST_ID \
+            --paths "/*"
