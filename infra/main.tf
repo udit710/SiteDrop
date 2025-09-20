@@ -1,6 +1,6 @@
 # S3 bucket for static site
 resource "aws_s3_bucket" "site" {
-  bucket = var.bucket_name
+  bucket = "${var.project_name}-${replace(lower(uuid()), "-", "")}"
 }
 
 # Block public access (use CloudFront only)
