@@ -30,7 +30,7 @@ jobs:
     - name: Terraform Apply
       run: |
         cd infra
-        terraform apply -auto-approve -var="bucket_name=${{ github.repository_owner }}-auto-site-drop"
+        terraform apply -auto-approve -var="bucket_name=${{ github.repository_owner }}-auto-site-dropped"
 
     - name: Upload static site files
       run: |
