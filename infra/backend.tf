@@ -1,6 +1,6 @@
 terraform {
   backend "s3" {
-    bucket = "terraform-state-${var.project_name}"
+    bucket = "terraform-state-sitedrop"
     key    = "infrastructure/terraform.tfstate"
     region = "us-east-1"
 
