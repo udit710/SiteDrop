@@ -49,3 +49,17 @@ jobs:
         run: |
           URL=$(cd infra && terraform output -raw cloudfront_url)
           echo "Live site URL: $URL"
+
+      - name: Update repo website
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+          LIVE_URL: ${{ steps.terraform-outputs.outputs.cloudfront_url }}
+        run: |
+          REPO_OWNER=${{ github.repository_owner }}
+          REPO_NAME=${{ github.event.repository.name }}
+
+          curl -X PATCH \
+            -H "Authorization: token $GH_PAT" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/$REPO_OWNER/$REPO_NAME \
+            -d "{\"homepage\": \"$LIVE_URL\"}"
