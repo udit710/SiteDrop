@@ -42,7 +42,7 @@ jobs:
           cd infra
           # First run without backend to create state bucket
           terraform init
-          
+
           # Create only the state management resources
           terraform apply -target=aws_s3_bucket.terraform_state \
                           -target=aws_s3_bucket_versioning.terraform_state \
@@ -51,11 +51,11 @@ jobs:
                           -target=aws_dynamodb_table.terraform_state_lock \
                           -target=random_id.bucket_suffix \
                           -auto-approve
-          
+
           # Get the actual bucket name that was created
           ACTUAL_BUCKET=$(terraform output -raw terraform_state_bucket)
           echo "Created state bucket: $ACTUAL_BUCKET"
-          
+
           # Now create the backend configuration
           cat > backend.tf << EOF
           terraform {
@@ -68,7 +68,7 @@ jobs:
             }
           }
           EOF
-          
+
           # Migrate local state to remote backend
           terraform init -migrate-state -force-copy
 
@@ -88,7 +88,7 @@ jobs:
             }
           }
           EOF
-          
+
           terraform init
 
       - name: Terraform Plan
@@ -115,3 +115,17 @@ jobs:
         run: |
           URL=$(cd infra && terraform output -raw cloudfront_url)
           echo "🚀 Live site URL: https://$URL"
+
+      - name: Update repo website
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+          LIVE_URL: ${{ steps.terraform-outputs.outputs.cloudfront_url }}
+        run: |
+          REPO_OWNER=${{ github.repository_owner }}
+          REPO_NAME=${{ github.event.repository.name }}
+
+          curl -X PATCH \
+            -H "Authorization: token $GH_PAT" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/$REPO_OWNER/$REPO_NAME \
+            -d "{\"homepage\": \"$LIVE_URL\"}"
