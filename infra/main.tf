@@ -1,6 +1,7 @@
 # S3 bucket for Terraform state
 resource "aws_s3_bucket" "terraform_state" {
-  bucket = "terraform-state-sitedrop-${random_id.bucket_suffix.hex}"
+  bucket        = "terraform-state-sitedrop-${random_id.bucket_suffix.hex}"
+  force_destroy = true
 
   lifecycle {
     prevent_destroy = true
@@ -67,7 +68,8 @@ resource "aws_dynamodb_table" "terraform_state_lock" {
 
 # S3 bucket for static site
 resource "aws_s3_bucket" "site" {
-  bucket = "${var.project_name}-${replace(lower(uuid()), "-", "")}"
+  bucket        = "${var.project_name}-${replace(lower(uuid()), "-", "")}"
+  force_destroy = true
 }
 
 # Block public access (use CloudFront only)

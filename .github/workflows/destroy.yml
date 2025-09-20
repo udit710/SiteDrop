@@ -21,8 +21,50 @@ jobs:
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v3
 
-    - name: Terraform Destroy
+    - name: Setup backend and destroy infrastructure
       run: |
         cd infra
-        terraform init
-        terraform destroy -auto-approve
+
+        # Check if state bucket exists and create backend config
+        if aws s3api list-buckets --query "Buckets[?contains(Name, 'terraform-state-sitedrop')].Name" --output text | grep -q terraform-state-sitedrop; then
+          BUCKET=$(aws s3api list-buckets --query "Buckets[?contains(Name, 'terraform-state-sitedrop')].Name" --output text | head -n1)
+          echo "Found state bucket: $BUCKET"
+
+          # Create backend configuration
+          cat > backend.tf << EOF
+          terraform {
+            backend "s3" {
+              bucket         = "$BUCKET"
+              key            = "infrastructure/terraform.tfstate"
+              region         = "us-east-1"
+              dynamodb_table = "terraform-state-lock-sitedrop"
+              encrypt        = true
+            }
+          }
+          EOF
+
+          # Initialize with remote state
+          terraform init
+
+          # Get site bucket name before destroying (for manual cleanup if needed)
+          SITE_BUCKET=$(terraform output -raw s3_bucket 2>/dev/null || echo "")
+          if [ ! -z "$SITE_BUCKET" ]; then
+            echo "Site bucket to be destroyed: $SITE_BUCKET"
+            # Empty the bucket first (though force_destroy should handle this)
+            aws s3 rm s3://$SITE_BUCKET --recursive || true
+          fi
+
+          # Destroy all infrastructure
+          terraform destroy -auto-approve
+
+          # Clean up state bucket manually (since it has prevent_destroy)
+          echo "Cleaning up state bucket: $BUCKET"
+          aws s3 rm s3://$BUCKET --recursive || true
+          aws s3 rb s3://$BUCKET || true
+
+          # Clean up DynamoDB table
+          aws dynamodb delete-table --table-name terraform-state-lock-sitedrop || true
+
+        else
+          echo "No state bucket found. Infrastructure may already be destroyed."
+        fi
