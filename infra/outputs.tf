@@ -12,3 +12,9 @@ output "cloudfront_id" {
   description = "CloudFront distribution ID"
   value       = aws_cloudfront_distribution.cdn.id
 }
+
+# Add output for state bucket (used in first deployment)
+output "terraform_state_bucket" {
+  description = "S3 bucket used for Terraform state"
+  value       = aws_s3_bucket.terraform_state.bucket
+}

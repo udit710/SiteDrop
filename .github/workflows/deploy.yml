@@ -22,10 +22,73 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
-      - name: Terraform Init
+      - name: Check if this is first deployment
+        id: check-state
         run: |
           cd infra
+          # Try to check if state bucket exists
+          if aws s3 ls "s3://terraform-state-sitedrop-*" 2>/dev/null; then
+            echo "first_deploy=false" >> $GITHUB_OUTPUT
+            # Get the actual bucket name
+            BUCKET=$(aws s3api list-buckets --query "Buckets[?contains(Name, 'terraform-state-sitedrop')].Name" --output text)
+            echo "state_bucket=$BUCKET" >> $GITHUB_OUTPUT
+          else
+            echo "first_deploy=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: First time setup (create state backend)
+        if: steps.check-state.outputs.first_deploy == 'true'
+        run: |
+          cd infra
+          # Initialize without backend first
           terraform init
+
+          # Create state management resources
+          terraform apply -target=aws_s3_bucket.terraform_state -target=aws_dynamodb_table.terraform_state_lock -target=random_id.bucket_suffix -auto-approve
+
+          # Get the created bucket name
+          STATE_BUCKET=$(terraform output -raw terraform_state_bucket)
+          echo "STATE_BUCKET=$STATE_BUCKET" >> $GITHUB_ENV
+
+          # Create backend configuration
+          cat > backend.tf << EOF
+          terraform {
+            backend "s3" {
+              bucket         = "$STATE_BUCKET"
+              key            = "infrastructure/terraform.tfstate"
+              region         = "us-east-1"
+              dynamodb_table = "terraform-state-lock-sitedrop"
+              encrypt        = true
+            }
+          }
+          EOF
+
+          # Migrate state to remote backend
+          terraform init -migrate-state -force-copy
+
+      - name: Terraform Init (existing deployment)
+        if: steps.check-state.outputs.first_deploy == 'false'
+        run: |
+          cd infra
+          # Create backend configuration with existing bucket
+          cat > backend.tf << EOF
+          terraform {
+            backend "s3" {
+              bucket         = "${{ steps.check-state.outputs.state_bucket }}"
+              key            = "infrastructure/terraform.tfstate"
+              region         = "us-east-1"
+              dynamodb_table = "terraform-state-lock-sitedrop"
+              encrypt        = true
+            }
+          }
+          EOF
+
+          terraform init
+
+      - name: Terraform Plan
+        run: |
+          cd infra
+          terraform plan
 
       - name: Terraform Apply
         run: |
@@ -48,18 +111,4 @@ jobs:
       - name: Show live URL
         run: |
           URL=$(cd infra && terraform output -raw cloudfront_url)
-          echo "Live site URL: $URL"
-
-      - name: Update repo website
-        env:
-          GH_PAT: ${{ secrets.GH_PAT }}
-          LIVE_URL: ${{ steps.terraform-outputs.outputs.cloudfront_url }}
-        run: |
-          REPO_OWNER=${{ github.repository_owner }}
-          REPO_NAME=${{ github.event.repository.name }}
-
-          curl -X PATCH \
-            -H "Authorization: token $GH_PAT" \
-            -H "Accept: application/vnd.github+json" \
-            https://api.github.com/repos/$REPO_OWNER/$REPO_NAME \
-            -d "{\"homepage\": \"$LIVE_URL\"}"
+          echo "Live site URL: https://$URL"
