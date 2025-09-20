@@ -3,70 +3,317 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Welcome to Your Static Site</title>
+    <title>Revive & Thrive Team - Action Group Plan</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 2rem;
-            line-height: 1.6;
-            color: #333;
+            font-family: 'Inter', sans-serif;
+            scroll-snap-type: y mandatory;
         }
-        .header {
+        .slide {
+            height: 100vh;
+            scroll-snap-align: start;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
             text-align: center;
-            margin-bottom: 3rem;
         }
-        .badge {
-            background: #28a745;
-            color: white;
-            padding: 0.5rem 1rem;
-            border-radius: 20px;
-            font-size: 0.9rem;
-            display: inline-block;
-            margin-bottom: 1rem;
+        /* Custom styles for the graph container */
+        .chart-container {
+            position: relative;
+            width: 100%;
+            height: 300px;
         }
-        .instructions {
-            background: #f8f9fa;
-            padding: 2rem;
-            border-radius: 8px;
-            border-left: 4px solid #007bff;
-        }
-        code {
-            background: #e9ecef;
-            padding: 0.2rem 0.4rem;
-            border-radius: 3px;
-            font-family: 'Monaco', 'Consolas', monospace;
+        .tooltip {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            pointer-events: none;
+            color: #333;
+            font-size: 0.875rem;
+            white-space: nowrap;
+            display: none;
+            z-index: 100;
         }
     </style>
+    <!-- Include D3.js for charting -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
 </head>
-<body>
-    <div class="header">
-        <div class="badge">✅ Deployment Successful</div>
-        <h1>Your Static Site is Live!</h1>
-        <p>This is the default page. Replace this <code>index.html</code> with your own content.</p>
-    </div>
+<body class="bg-gray-100">
 
-    <div class="instructions">
-        <h2>Next Steps</h2>
-        <ol>
-            <li>Replace this <code>index.html</code> file with your own</li>
-            <li>Add any additional static files (CSS, JS, images) to the repository</li>
-            <li>Commit and push to the main branch</li>
-            <li>GitHub Actions will automatically redeploy your site</li>
-        </ol>
+    <!-- Slide 1: Title -->
+    <section class="slide bg-white">
+        <div class="max-w-3xl w-full">
+            <h1 class="text-4xl md:text-6xl font-extrabold text-blue-800 mb-4 tracking-tight">Revive & Thrive Team 🚀</h1>
+            <p class="text-xl md:text-3xl font-semibold text-gray-700">Action Group Plan – Improving Sales & Employee Motivation</p>
+        </div>
+    </section>
 
-        <h3>Repository Structure</h3>
-        <pre><code>your-repo/
-├── index.html          (your main page)
-├── css/               (stylesheets)
-├── js/                (javascript files)
-├── images/            (images and assets)
-└── .github/workflows/ (deployment automation)</code></pre>
-    </div>
+    <!-- Slide 2: Problem Overview -->
+    <section class="slide bg-blue-800 text-white">
+        <div class="max-w-4xl w-full">
+            <h2 class="text-3xl md:text-5xl font-bold mb-8">Problem Overview 📉</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                <ul class="text-xl md:text-2xl space-y-4 text-left font-light">
+                    <li>Sales have declined for 2 years. 📉</li>
+                    <li>Staff layoffs due to poor performance. 😥</li>
+                    <li>Low employee morale and engagement. 😞</li>
+                    <li><span class="font-semibold">Need:</span> Practical strategies to improve sales & motivation. 💡</li>
+                </ul>
+                <div class="chart-container flex justify-center items-center">
+                    <svg id="sales-chart" class="w-full h-full"></svg>
+                </div>
+            </div>
+        </div>
+    </section>
 
-    <footer style="text-align: center; margin-top: 3rem; color: #666;">
-        <p>Powered by AWS EC2 + GitHub Actions</p>
-    </footer>
+    <!-- Slide 3: Goals 1 & 2 -->
+    <section class="slide bg-white">
+        <div class="max-w-5xl w-full">
+            <h2 class="text-3xl md:text-5xl font-bold text-gray-800 mb-12">Goals 1 & 2 💪</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-12 text-left">
+                <div class="bg-blue-50 p-6 rounded-xl shadow-lg">
+                    <h3 class="text-2xl font-bold text-blue-700 mb-4">Goal 1: Increase Sales <span class="text-base font-normal">(15% in 12 months) 📈</span></h3>
+                    <ul class="list-disc list-inside text-gray-700 space-y-2 text-lg">
+                        <li><span class="font-semibold">Short-term:</span> Targeted promotions & discounts 🎁</li>
+                        <li><span class="font-semibold">Medium-term:</span> Upselling & cross-selling training 📚</li>
+                        <li><span class="font-semibold">Long-term:</span> Expand online presence/digital marketing 🌐</li>
+                    </ul>
+                </div>
+                <div class="bg-green-50 p-6 rounded-xl shadow-lg">
+                    <h3 class="text-2xl font-bold text-green-700 mb-4">Goal 2: Boost Motivation & Retention ✨</h3>
+                    <ul class="list-disc list-inside text-gray-700 space-y-2 text-lg">
+                        <li><span class="font-semibold">Short-term:</span> Recognition & reward program 🎉</li>
+                        <li><span class="font-semibold">Medium-term:</span> Regular training & workshops 🧠</li>
+                        <li><span class="font-semibold">Long-term:</span> Mentorship program 🤝</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Slide 4: Goals 3 & 4 -->
+    <section class="slide bg-gray-900 text-white">
+        <div class="max-w-5xl w-full">
+            <h2 class="text-3xl md:text-5xl font-bold mb-12">Goals 3 & 4 🎯</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-12 text-left">
+                <div class="bg-gray-800 p-6 rounded-xl shadow-lg">
+                    <h3 class="text-2xl font-bold text-yellow-400 mb-4">Goal 3: Enhance Customer Experience 😊</h3>
+                    <ul class="list-disc list-inside text-gray-300 space-y-2 text-lg">
+                        <li><span class="font-semibold">Short-term:</span> Customer service refresher training 🗣️</li>
+                        <li><span class="font-semibold">Medium-term:</span> Introduce customer feedback surveys 📝</li>
+                        <li><span class="font-semibold">Long-term:</span> Loyalty program for repeat buyers 💖</li>
+                    </ul>
+                </div>
+                <div class="bg-gray-800 p-6 rounded-xl shadow-lg">
+                    <h3 class="text-2xl font-bold text-purple-400 mb-4">Goal 4: Strengthen Collaboration 🤝</h3>
+                    <ul class="list-disc list-inside text-gray-300 space-y-2 text-lg">
+                        <li><span class="font-semibold">Short-term:</span> Weekly cross-department meetings 🗓️</li>
+                        <li><span class="font-semibold">Medium-term:</span> Adopt collaboration tools (Teams/Slack) 💬</li>
+                        <li><span class="font-semibold">Long-term:</span> Annual team-building events 🥳</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Slide 5: Goal 5 -->
+    <section class="slide bg-white">
+        <div class="max-w-3xl w-full">
+            <h2 class="text-3xl md:text-5xl font-bold text-gray-800 mb-8">Goal 5: Encourage Innovation 💡</h2>
+            <ul class="list-disc list-inside text-gray-700 space-y-4 text-xl md:text-2xl text-left">
+                <li><span class="font-semibold">Short-term:</span> Employee idea-sharing forum 🧠</li>
+                <li><span class="font-semibold">Medium-term:</span> Rewards for best ideas 🏆</li>
+                <li><span class="font-semibold">Long-term:</span> Innovation task groups to test new ideas 🔬</li>
+            </ul>
+        </div>
+    </section>
+
+    <!-- Slide 6: Summary & Expected Outcomes -->
+    <section class="slide bg-red-700 text-white">
+        <div class="max-w-4xl w-full">
+            <h2 class="text-3xl md:text-5xl font-bold mb-8">Summary & Expected Outcomes ✅</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                <ul class="text-xl md:text-2xl space-y-4 text-left font-light">
+                    <li>15 Objectives across 5 goals.</li>
+                    <li>Balanced short, medium & long-term strategies.</li>
+                    <li>Increased sales performance.</li>
+                    <li>Higher employee motivation & retention.</li>
+                    <li>Stronger collaboration and innovation culture.</li>
+                </ul>
+                <div class="chart-container flex justify-center items-center">
+                    <svg id="outcomes-chart" class="w-full h-full"></svg>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <script>
+        window.onload = function() {
+            // Function to draw the sales decline chart
+            function drawSalesChart() {
+                const container = d3.select("#sales-chart");
+                container.selectAll("*").remove();
+
+                const data = [
+                    { year: 2023, sales: 100 },
+                    { year: 2024, sales: 85 },
+                    { year: 2025, sales: 75 }
+                ];
+
+                const margin = { top: 20, right: 30, bottom: 40, left: 50 };
+                const width = container.node().getBoundingClientRect().width - margin.left - margin.right;
+                const height = container.node().getBoundingClientRect().height - margin.top - margin.bottom;
+
+                const svg = container.attr("width", width + margin.left + margin.right)
+                                     .attr("height", height + margin.top + margin.bottom)
+                                     .append("g")
+                                     .attr("transform", `translate(${margin.left},${margin.top})`);
+
+                const x = d3.scalePoint()
+                    .domain(data.map(d => d.year))
+                    .range([0, width])
+                    .padding(0.5);
+
+                const y = d3.scaleLinear()
+                    .domain([0, d3.max(data, d => d.sales)])
+                    .nice()
+                    .range([height, 0]);
+
+                svg.append("g")
+                    .attr("class", "x-axis")
+                    .attr("transform", `translate(0,${height})`)
+                    .call(d3.axisBottom(x).tickSizeOuter(0))
+                    .selectAll("text")
+                    .style("fill", "white");
+
+                svg.append("g")
+                    .attr("class", "y-axis")
+                    .call(d3.axisLeft(y).ticks(5))
+                    .selectAll("text")
+                    .style("fill", "white");
+
+                const line = d3.line()
+                    .x(d => x(d.year))
+                    .y(d => y(d.sales));
+
+                svg.append("path")
+                    .datum(data)
+                    .attr("fill", "none")
+                    .attr("stroke", "#ffed4a")
+                    .attr("stroke-width", 3)
+                    .attr("d", line)
+                    .style("filter", "drop-shadow(2px 2px 2px rgba(0,0,0,0.5))");
+
+                svg.selectAll("circle")
+                    .data(data)
+                    .enter()
+                    .append("circle")
+                    .attr("cx", d => x(d.year))
+                    .attr("cy", d => y(d.sales))
+                    .attr("r", 6)
+                    .attr("fill", "#ffed4a")
+                    .attr("stroke", "#ffc800")
+                    .attr("stroke-width", 2)
+                    .on("mouseover", function(event, d) {
+                        const tooltip = d3.select("body").append("div")
+                            .attr("class", "tooltip")
+                            .style("display", "block")
+                            .html(`Year: ${d.year}<br>Sales: $${d.sales}M`)
+                            .style("left", `${event.pageX + 10}px`)
+                            .style("top", `${event.pageY - 20}px`);
+                        d3.select(this).transition().duration(200).attr("r", 8);
+                    })
+                    .on("mouseout", function() {
+                        d3.select(".tooltip").remove();
+                        d3.select(this).transition().duration(200).attr("r", 6);
+                    });
+            }
+
+            // Function to draw the expected outcomes bar chart
+            function drawOutcomesChart() {
+                const container = d3.select("#outcomes-chart");
+                container.selectAll("*").remove();
+
+                const data = [
+                    { label: 'Sales', value: 15 },
+                    { label: 'Motivation', value: 30 },
+                    { label: 'Collaboration', value: 25 }
+                ];
+
+                const margin = { top: 20, right: 20, bottom: 50, left: 50 };
+                const width = container.node().getBoundingClientRect().width - margin.left - margin.right;
+                const height = container.node().getBoundingClientRect().height - margin.top - margin.bottom;
+
+                const svg = container.attr("width", width + margin.left + margin.right)
+                                     .attr("height", height + margin.top + margin.bottom)
+                                     .append("g")
+                                     .attr("transform", `translate(${margin.left},${margin.top})`);
+
+                const x = d3.scaleBand()
+                    .domain(data.map(d => d.label))
+                    .range([0, width])
+                    .padding(0.3);
+
+                const y = d3.scaleLinear()
+                    .domain([0, d3.max(data, d => d.value) + 10])
+                    .range([height, 0]);
+
+                svg.append("g")
+                    .attr("class", "x-axis")
+                    .attr("transform", `translate(0,${height})`)
+                    .call(d3.axisBottom(x))
+                    .selectAll("text")
+                    .style("fill", "white");
+
+                svg.append("g")
+                    .attr("class", "y-axis")
+                    .call(d3.axisLeft(y).ticks(5))
+                    .selectAll("text")
+                    .style("fill", "white");
+
+                svg.selectAll(".bar")
+                    .data(data)
+                    .enter()
+                    .append("rect")
+                    .attr("class", "bar")
+                    .attr("x", d => x(d.label))
+                    .attr("y", d => y(d.value))
+                    .attr("width", x.bandwidth())
+                    .attr("height", d => height - y(d.value))
+                    .attr("fill", "#ffed4a")
+                    .on("mouseover", function(event, d) {
+                        const tooltip = d3.select("body").append("div")
+                            .attr("class", "tooltip")
+                            .style("display", "block")
+                            .html(`${d.label}: ${d.value}%`)
+                            .style("left", `${event.pageX + 10}px`)
+                            .style("top", `${event.pageY - 20}px`);
+
+                        d3.select(this).transition().duration(200).attr("fill", "#ffc800");
+                    })
+                    .on("mouseout", function() {
+                        d3.select(".tooltip").remove();
+                        d3.select(this).transition().duration(200).attr("fill", "#ffed4a");
+                    });
+            }
+
+            // Draw charts on page load and window resize
+            function drawAllCharts() {
+                drawSalesChart();
+                drawOutcomesChart();
+            }
+
+            drawAllCharts();
+            window.addEventListener('resize', drawAllCharts);
+        };
+    </script>
 </body>
 </html>

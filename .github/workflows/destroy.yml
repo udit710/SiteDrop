@@ -1,4 +1,5 @@
-name: Destroy SiteDrop Infra
+# Destroy Website Infrastructure using Terraform
+name: Destroy Website Infra
 
 on:
   workflow_dispatch:   # manual trigger only
@@ -16,7 +17,7 @@ jobs:
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: us-east-1
+        aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
 
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v3
@@ -25,9 +26,13 @@ jobs:
       run: |
         cd infra
 
+        # Read variables from tfvars
+        PROJECT_NAME=$(grep 'project_name' user.tfvars | cut -d'"' -f2)
+        AWS_REGION=$(grep 'aws_region' user.tfvars | cut -d'"' -f2)
+
         # Check if state bucket exists and create backend config
-        if aws s3api list-buckets --query "Buckets[?contains(Name, 'terraform-state-sitedrop')].Name" --output text | grep -q terraform-state-sitedrop; then
-          BUCKET=$(aws s3api list-buckets --query "Buckets[?contains(Name, 'terraform-state-sitedrop')].Name" --output text | head -n1)
+        if aws s3api list-buckets --query "Buckets[?contains(Name, 'terraform-state-$PROJECT_NAME')].Name" --output text | grep -q terraform-state-$PROJECT_NAME; then
+          BUCKET=$(aws s3api list-buckets --query "Buckets[?contains(Name, 'terraform-state-$PROJECT_NAME')].Name" --output text | head -n1)
           echo "Found state bucket: $BUCKET"
 
           # Create backend configuration
@@ -36,15 +41,15 @@ jobs:
           backend "s3" {
             bucket         = "$BUCKET"
             key            = "infrastructure/terraform.tfstate"
-            region         = "us-east-1"
-            dynamodb_table = "terraform-state-lock-sitedrop"
+            region         = "$AWS_REGION"
+            dynamodb_table = "terraform-state-lock-$PROJECT_NAME"
             encrypt        = true
           }
         }
         EOF
 
           # Initialize with remote state
-          terraform init
+          terraform init -var-file=user.tfvars
 
           # Get site bucket name before destroying (for manual cleanup if needed)
           SITE_BUCKET=$(terraform output -raw s3_bucket 2>/dev/null || echo "")
@@ -55,15 +60,7 @@ jobs:
           fi
 
           # Destroy all infrastructure
-          terraform destroy -auto-approve
-
-          # Clean up state bucket manually (since it has prevent_destroy)
-          echo "Cleaning up state bucket: $BUCKET"
-          aws s3 rm s3://$BUCKET --recursive || true
-          aws s3 rb s3://$BUCKET || true
-
-          # Clean up DynamoDB table
-          aws dynamodb delete-table --table-name terraform-state-lock-sitedrop || true
+          terraform destroy -var-file=user.tfvars -auto-approve
 
         else
           echo "No state bucket found. Infrastructure may already be destroyed."
