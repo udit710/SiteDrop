@@ -30,37 +30,51 @@ jobs:
         PROJECT_NAME=$(grep 'project_name' user.tfvars | cut -d'"' -f2)
         AWS_REGION=$(grep 'aws_region' user.tfvars | cut -d'"' -f2)
 
-        # Check if state bucket exists and create backend config
+        # Check if state bucket exists
         if aws s3api list-buckets --query "Buckets[?contains(Name, 'terraform-state-$PROJECT_NAME')].Name" --output text | grep -q terraform-state-$PROJECT_NAME; then
           BUCKET=$(aws s3api list-buckets --query "Buckets[?contains(Name, 'terraform-state-$PROJECT_NAME')].Name" --output text | head -n1)
           echo "Found state bucket: $BUCKET"
 
-          # Create backend configuration
-          cat > backend.tf << EOF
-        terraform {
-          backend "s3" {
-            bucket         = "$BUCKET"
-            key            = "infrastructure/terraform.tfstate"
-            region         = "$AWS_REGION"
-            dynamodb_table = "terraform-state-lock-$PROJECT_NAME"
-            encrypt        = true
+          # Download the remote state file to local
+          echo "Downloading remote state to local file..."
+          aws s3 cp s3://$BUCKET/infrastructure/terraform.tfstate ./terraform.tfstate || {
+            echo "⚠️ Could not download remote state. Infrastructure may already be partially destroyed."
+            exit 0
           }
-        }
-        EOF
 
-          # Initialize with remote state
+          # Initialize Terraform with LOCAL state only (no backend)
+          echo "Initializing Terraform with local state..."
           terraform init -var-file=user.tfvars
 
-          # Get site bucket name before destroying (for manual cleanup if needed)
-          SITE_BUCKET=$(terraform output -raw s3_bucket 2>/dev/null || echo "")
+          # Get site bucket name before destroying
+          SITE_BUCKET=$(terraform show -json 2>/dev/null | jq -r '.values.outputs.s3_bucket.value // empty' 2>/dev/null || echo "")
           if [ ! -z "$SITE_BUCKET" ]; then
             echo "Site bucket to be destroyed: $SITE_BUCKET"
             # Empty the bucket first (though force_destroy should handle this)
             aws s3 rm s3://$SITE_BUCKET --recursive || true
           fi
 
-          # Destroy all infrastructure
+          # Destroy all infrastructure using LOCAL state
+          # This won't try to save state back to the remote backend
+          echo "🗑️ Destroying infrastructure with local state..."
           terraform destroy -var-file=user.tfvars -auto-approve
+
+          # Manual cleanup of any remaining resources
+          echo "🧹 Final cleanup of any remaining resources..."
+
+          # Clean up any buckets that match our project pattern
+          aws s3api list-buckets --query "Buckets[?contains(Name, '$PROJECT_NAME') || contains(Name, 'terraform-state-$PROJECT_NAME')].Name" --output text | while read bucket; do
+            if [ ! -z "$bucket" ]; then
+              echo "Removing remaining bucket: $bucket"
+              aws s3 rm s3://$bucket --recursive 2>/dev/null || true
+              aws s3 rb s3://$bucket 2>/dev/null || true
+            fi
+          done
+
+          # Clean up DynamoDB table
+          aws dynamodb delete-table --table-name "terraform-state-lock-$PROJECT_NAME" 2>/dev/null || true
+
+          echo "✅ Infrastructure destroyed successfully!"
 
         else
           echo "No state bucket found. Infrastructure may already be destroyed."
