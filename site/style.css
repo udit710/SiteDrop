@@ -1,0 +1,271 @@
+/* SiteDrop Landing Page Styles */
+:root {
+    --primary-color: #007bff;
+    --success-color: #28a745;
+    --background-light: #f8f9fa;
+    --border-light: #e9ecef;
+    --text-primary: #333;
+    --text-secondary: #666;
+    --border-radius: 8px;
+    --shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    line-height: 1.6;
+    color: var(--text-primary);
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    padding: 2rem 1rem;
+}
+
+.container {
+    max-width: 900px;
+    margin: 0 auto;
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+}
+
+/* Hero Section */
+.hero {
+    background: linear-gradient(135deg, var(--primary-color), #0056b3);
+    color: white;
+    text-align: center;
+    padding: 3rem 2rem;
+}
+
+.success-badge {
+    background: var(--success-color);
+    color: white;
+    padding: 0.5rem 1.5rem;
+    border-radius: 25px;
+    font-size: 0.9rem;
+    display: inline-block;
+    margin-bottom: 1rem;
+    font-weight: 600;
+}
+
+.hero h1 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+.hero-subtitle {
+    font-size: 1.1rem;
+    opacity: 0.9;
+    margin-bottom: 2rem;
+}
+
+.features {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.feature {
+    background: rgba(255,255,255,0.2);
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    backdrop-filter: blur(10px);
+}
+
+/* Main Content */
+main {
+    padding: 3rem 2rem;
+}
+
+/* Next Steps Section */
+.next-steps h2 {
+    margin-bottom: 2rem;
+    color: var(--text-primary);
+}
+
+.steps {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    margin-bottom: 3rem;
+}
+
+.step {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1.5rem;
+    background: var(--background-light);
+    border-radius: var(--border-radius);
+    border-left: 4px solid var(--primary-color);
+}
+
+.step-number {
+    background: var(--primary-color);
+    color: white;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    flex-shrink: 0;
+}
+
+.step-content h3 {
+    margin-bottom: 0.5rem;
+    color: var(--text-primary);
+}
+
+.step-content p {
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+/* Info Grid */
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2rem;
+    margin-bottom: 3rem;
+}
+
+.info-card {
+    background: white;
+    border: 1px solid var(--border-light);
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    box-shadow: var(--shadow);
+}
+
+.info-card h3 {
+    margin-bottom: 1rem;
+    color: var(--text-primary);
+}
+
+.info-card ul {
+    list-style: none;
+    padding: 0;
+}
+
+.info-card li {
+    padding: 0.3rem 0;
+    color: var(--text-secondary);
+}
+
+.info-card li::before {
+    content: "→ ";
+    color: var(--primary-color);
+    font-weight: bold;
+}
+
+/* Deployment Info */
+.deployment-info h2 {
+    margin-bottom: 1.5rem;
+    color: var(--text-primary);
+}
+
+.deployment-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.deploy-stat {
+    background: var(--background-light);
+    padding: 1rem;
+    border-radius: var(--border-radius);
+    text-align: center;
+}
+
+.deploy-stat strong {
+    color: var(--primary-color);
+}
+
+/* Code styles */
+code {
+    background: var(--border-light);
+    padding: 0.2rem 0.4rem;
+    border-radius: 3px;
+    font-family: 'Monaco', 'Consolas', 'SF Mono', monospace;
+    font-size: 0.9em;
+    color: var(--text-primary);
+}
+
+pre code {
+    display: block;
+    padding: 1rem;
+    background: #2d3748;
+    color: #e2e8f0;
+    border-radius: var(--border-radius);
+    overflow-x: auto;
+    line-height: 1.4;
+}
+
+/* Footer */
+footer {
+    background: var(--background-light);
+    padding: 2rem;
+    text-align: center;
+    color: var(--text-secondary);
+}
+
+footer p {
+    margin: 0.5rem 0;
+}
+
+footer a {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+footer a:hover {
+    text-decoration: underline;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    body {
+        padding: 1rem 0.5rem;
+    }
+
+    .hero {
+        padding: 2rem 1rem;
+    }
+
+    .hero h1 {
+        font-size: 2rem;
+    }
+
+    main {
+        padding: 2rem 1rem;
+    }
+
+    .features {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .step {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .info-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .deployment-grid {
+        grid-template-columns: 1fr;
+    }
+}
