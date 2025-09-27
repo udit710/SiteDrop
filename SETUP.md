@@ -190,3 +190,9 @@ After successful deployment, check:
 2. Your repository description (should be updated automatically)
 3. The URL format: `https://d[random].cloudfront.net`
 4. The repository description should now show your live site URL
+
+## Successful Deployment!
+
+Upon completion, you should see the following page on visiting the URL:
+
+![Live Page](diagrams/live-page.png)
