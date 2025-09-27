@@ -10,6 +10,16 @@ This guide walks you through setting up SiteDrop from scratch, including AWS con
 
 ## 📋 Step-by-Step Setup
 
+
+### Environment Variables
+
+You can customize deployment by adding these optional variables in the `user.tfvars` file in the `infra/` directory:
+
+| Secret Name | Default | Description |
+|-------------|---------|-------------|
+| `AWS_REGION` | `us-east-1` | AWS region for resources |
+| `PROJECT_NAME` | `sitedrop` | Prefix for AWS resource names |
+
 ### Step 1: Fork the Repository
 
 1. Go to the [SiteDrop repository](https://github.com/udit710/SiteDrop)
@@ -155,19 +165,6 @@ site/
 - All files must be static (no server-side processing)
 - Recommended: Keep total size under 100MB for fast uploads
 
-#### 5.3 Test Locally (Optional)
-
-```bash
-# Simple HTTP server with Python
-cd site/
-python -m http.server 8000
-
-# Or with Node.js
-npx serve .
-
-# Open http://localhost:8000 in your browser
-```
-
 ### Step 6: Deploy Your Site
 
 #### 6.1 Push Your Changes
@@ -192,158 +189,4 @@ After successful deployment, check:
 1. The workflow output for your live URL
 2. Your repository description (should be updated automatically)
 3. The URL format: `https://d[random].cloudfront.net`
-
-## 🔧 Advanced Configuration
-
-### Custom Domain Setup
-
-After deployment, you can use your own domain:
-
-1. **Get CloudFront URL** from deployment output
-2. **Create DNS record**:
-   - **CNAME**: `www.yourdomain.com` → `d1234567890.cloudfront.net`
-   - **ALIAS/ANAME**: `yourdomain.com` → CloudFront URL (if supported)
-
-### SSL Certificate (Custom Domain)
-
-For custom domains with SSL:
-1. Go to AWS Certificate Manager
-2. Request certificate for your domain
-3. Update CloudFront distribution to use the certificate
-
-### Environment Variables
-
-You can customize deployment by adding these optional secrets:
-
-| Secret Name | Default | Description |
-|-------------|---------|-------------|
-| `AWS_REGION` | `us-east-1` | AWS region for resources |
-| `PROJECT_NAME` | `sitedrop` | Prefix for AWS resource names |
-
-## 📊 Cost Management
-
-### Monitoring Costs
-
-1. **AWS Cost Explorer**: Track actual usage
-2. **CloudWatch**: Monitor CloudFront requests
-3. **S3 Storage Lens**: Analyze storage usage
-
-### Cost Optimization Tips
-
-- **Compress files** before uploading (gzip, webp images)
-- **Optimize images** to reduce S3 storage costs
-- **Use CloudFront caching** effectively (default settings are good)
-- **Monitor usage** regularly via AWS Cost Explorer
-
-## 🔒 Security Best Practices
-
-### AWS Security
-
-- ✅ Use least-privilege IAM policy (provided above)
-- ✅ Rotate access keys regularly (every 90 days)
-- ✅ Enable CloudTrail for API logging
-- ✅ Monitor AWS Config for compliance
-
-### GitHub Security
-
-- ✅ Use fine-grained PATs with minimal permissions
-- ✅ Set PAT expiration dates
-- ✅ Regularly review repository access
-- ✅ Enable two-factor authentication
-
-### Content Security
-
-- ✅ Never commit sensitive data to the repository
-- ✅ Use environment variables for configuration
-- ✅ Scan dependencies for vulnerabilities
-- ✅ Keep dependencies updated
-
-## 🔍 Troubleshooting
-
-### Common Setup Issues
-
-| Issue | Solution |
-|-------|----------|
-| **AWS credentials invalid** | Verify access key ID and secret access key |
-| **Insufficient permissions** | Ensure IAM policy includes all required actions |
-| **GitHub PAT invalid** | Check PAT has Administration write permissions |
-| **Repository access denied** | Verify PAT is scoped to correct repository |
-| **Deployment fails** | Check GitHub Actions logs for detailed error |
-
-### AWS Permission Errors
-
-If you see permission errors, verify your IAM user has:
-- `s3:*` permissions for S3 operations
-- `cloudfront:*` permissions for CDN management
-- `iam:*` permissions for role management (OAI)
-- `dynamodb:*` permissions for state locking
-
-### GitHub Actions Errors
-
-Common errors and solutions:
-
-```bash
-# Error: AWS credentials not found
-# Solution: Check AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY secrets
-
-# Error: Repository update failed
-# Solution: Verify GH_PAT has Administration write permissions
-
-# Error: Terraform state locked
-# Solution: Wait for previous deployment to complete or check DynamoDB table
-```
-
-### Getting Help
-
-1. **Check workflow logs**: Detailed error messages in GitHub Actions
-2. **AWS CloudTrail**: See what API calls were made
-3. **Create GitHub issue**: Include error logs and setup details
-4. **GitHub Discussions**: Ask questions and get community help
-
-## 🔄 Updating SiteDrop
-
-To update SiteDrop itself (not your website):
-
-1. **Check for updates** in the original repository
-2. **Sync your fork**:
-   ```bash
-   git remote add upstream https://github.com/udit710/SiteDrop.git
-   git fetch upstream
-   git merge upstream/main
-   git push origin main
-   ```
-3. **Test deployment** after updates
-
-## 🗑️ Cleanup
-
-### Destroy Infrastructure
-
-To completely remove all AWS resources:
-
-1. Go to **Actions** tab in your repository
-2. Select **"Destroy SiteDrop Infra"** workflow
-3. Click **"Run workflow"** → **"Run workflow"**
-4. Confirm destruction in the workflow
-
-### Remove GitHub Resources
-
-1. **Delete repository** (if no longer needed)
-2. **Revoke PAT**: Settings → Developer settings → Personal access tokens
-3. **Remove AWS user**: IAM → Users → Delete user
-
----
-
-## ✅ Setup Checklist
-
-- [ ] AWS account created
-- [ ] IAM user created with SiteDrop policy
-- [ ] AWS access keys generated and saved
-- [ ] GitHub fine-grained PAT created with Administration write permissions
-- [ ] Repository forked
-- [ ] GitHub secrets configured (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, GH_PAT)
-- [ ] Website content added to `site/` directory
-- [ ] Changes committed and pushed to main branch
-- [ ] Deployment workflow completed successfully
-- [ ] Live URL received and verified
-
-**Congratulations! Your static website is now live on AWS CloudFront! 🎉**
+4. The repository description should now show your live site URL

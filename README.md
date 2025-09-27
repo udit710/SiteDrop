@@ -78,6 +78,7 @@ sitedrop/
 │   ├── provider.tf        # Terraform provider configuration
 │   ├── variables.tf       # Input variables
 │   └── outputs.tf         # Output values (URLs, IDs)
+|   └── user.tfvars        # User-specific variables
 ├── site/                   # 👈 PUT YOUR WEBSITE HERE
 │   ├── index.html         # Your main page
 │   ├── style.css          # Your styles
@@ -93,17 +94,8 @@ sitedrop/
 
 SiteDrop is extremely cost-effective:
 
-| Service | Cost | Details |
-|---------|------|---------|
-| **S3 Storage** | ~$0.023/GB/month | Your website files |
-| **CloudFront** | ~$0.085/GB transferred | First 1TB/month: $0.085/GB |
-| **S3 Requests** | ~$0.0004/1000 requests | GET requests |
-| **Terraform State** | ~$0.023/GB/month | State file storage |
-| **DynamoDB** | Free tier | State locking (on-demand) |
-
-**Example**: A 10MB website with 1000 monthly visitors ≈ **$0.50/month**
-
-**AWS Free Tier**: New AWS accounts get significant free usage for the first 12 months.
+- S3 pricing: https://aws.amazon.com/s3/pricing/
+- CloudFront pricing: https://aws.amazon.com/cloudfront/pricing/
 
 ## 🔧 Management
 
@@ -140,15 +132,6 @@ After deployment, you can use your own domain:
 
 For SSL with custom domain, you'll need to request a certificate in AWS Certificate Manager and update the CloudFront distribution.
 
-## 🛡️ Security Features
-
-- **Private S3 Bucket**: Your files are not publicly accessible via S3
-- **Origin Access Identity**: Only CloudFront can access your S3 bucket
-- **HTTPS Only**: CloudFront serves all content over HTTPS
-- **State Encryption**: Terraform state is encrypted in S3
-- **State Locking**: DynamoDB prevents concurrent modifications
-- **Least Privilege**: IAM permissions follow principle of least privilege
-
 ## 🔍 Monitoring & Troubleshooting
 
 ### Checking Your Site
@@ -156,18 +139,6 @@ After deployment, you'll get:
 - **Live URL**: `https://d1234567890.cloudfront.net`
 - **CloudFront Distribution ID**: For cache management
 - **S3 Bucket Name**: For direct file access (if needed)
-
-### Common Issues
-
-| Issue | Solution |
-|-------|----------|
-| **403 Forbidden** | Check if `index.html` exists in `site/` folder |
-| **Deployment fails** | Verify AWS credentials and permissions |
-| **Old content showing** | CloudFront cache - wait 5-10 minutes or invalidate cache |
-| **GitHub secrets error** | Ensure all three secrets are correctly set |
-
-### Cache Invalidation
-CloudFront caches content for performance. The deployment automatically invalidates the cache, but if needed, you can manually invalidate via AWS Console.
 
 ## 📚 Examples
 
@@ -178,25 +149,9 @@ Check the `examples/` directory for:
 - Image galleries
 - Documentation sites
 
-## 🤝 Contributing
-
-Contributions are welcome! Please:
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
-
 ## 📄 License
 
 MIT License - see [LICENSE](LICENSE) file for details.
-
-## 🆘 Support
-
-- 📖 **Documentation**: [SETUP.md](SETUP.md) for detailed setup instructions
-- 🐛 **Issues**: Create GitHub issues for bugs or feature requests
-- 💬 **Discussions**: Use GitHub Discussions for questions
-- 📧 **Contact**: Check repository owner's profile for contact info
 
 ---
 
