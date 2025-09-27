@@ -1,0 +1,105 @@
+# Destroy Website Infrastructure using Terraform
+name: Destroy Website Infra
+
+on:
+  workflow_dispatch:   # manual trigger only
+
+jobs:
+  destroy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+
+    - name: Setup backend and destroy infrastructure
+      run: |
+        cd infra
+
+        # Read variables from tfvars
+        PROJECT_NAME=$(grep 'project_name' user.tfvars | cut -d'"' -f2)
+        AWS_REGION=$(grep 'aws_region' user.tfvars | cut -d'"' -f2)
+
+        # Check if state bucket exists
+        if aws s3api list-buckets --query "Buckets[?contains(Name, 'terraform-state-$PROJECT_NAME')].Name" --output text | grep -q terraform-state-$PROJECT_NAME; then
+          BUCKET=$(aws s3api list-buckets --query "Buckets[?contains(Name, 'terraform-state-$PROJECT_NAME')].Name" --output text | head -n1)
+          echo "Found state bucket: $BUCKET"
+
+          # Download the remote state file to local
+          echo "Downloading remote state to local file..."
+          aws s3 cp s3://$BUCKET/infrastructure/terraform.tfstate ./terraform.tfstate || {
+            echo "⚠️ Could not download remote state. Infrastructure may already be partially destroyed."
+            exit 0
+          }
+
+          # Initialize Terraform with LOCAL state only (no backend)
+          echo "Initializing Terraform with local state..."
+          terraform init -var-file=user.tfvars
+
+          # Get site bucket name before destroying
+          SITE_BUCKET=$(terraform show -json 2>/dev/null | jq -r '.values.outputs.s3_bucket.value // empty' 2>/dev/null || echo "")
+          if [ ! -z "$SITE_BUCKET" ]; then
+            echo "Site bucket to be destroyed: $SITE_BUCKET"
+            # Empty the bucket first (though force_destroy should handle this)
+            aws s3 rm s3://$SITE_BUCKET --recursive || true
+          fi
+
+          # Destroy all infrastructure using LOCAL state
+          # This won't try to save state back to the remote backend
+          echo "🗑️ Destroying infrastructure with local state..."
+          terraform destroy -var-file=user.tfvars -auto-approve
+
+          # Manual cleanup of any remaining resources
+          echo "🧹 Final cleanup of any remaining resources..."
+
+          # Clean up any buckets that match our project pattern
+          aws s3api list-buckets --query "Buckets[?contains(Name, '$PROJECT_NAME') || contains(Name, 'terraform-state-$PROJECT_NAME')].Name" --output text | while read bucket; do
+            if [ ! -z "$bucket" ]; then
+              echo "Removing remaining bucket: $bucket"
+              aws s3 rm s3://$bucket --recursive 2>/dev/null || true
+              aws s3 rb s3://$bucket 2>/dev/null || true
+            fi
+          done
+
+          # Clean up DynamoDB table
+          aws dynamodb delete-table --table-name "terraform-state-lock-$PROJECT_NAME" 2>/dev/null || true
+
+          echo "✅ Infrastructure destroyed successfully!"
+
+        else
+          echo "No state bucket found. Infrastructure may already be destroyed."
+        fi
+    - name: Update repo website
+      if: github.ref == 'refs/heads/main'
+      env:
+        GH_PAT: ${{ secrets.GH_PAT }}
+      run: |
+        REPO_OWNER=${{ github.repository_owner }}
+        REPO_NAME=${{ github.event.repository.name }}
+        URL=$(cd infra && terraform output -raw cloudfront_url)
+
+        # Set description to just the live URL
+        NEW_DESC="🚀 Push to deploy - site launching made simple"
+
+        echo "Updating description to: $NEW_DESC"
+        curl -s -X PATCH \
+          -H "Authorization: token $GH_PAT" \
+          -H "Accept: application/vnd.github+json" \
+          https://api.github.com/repos/$REPO_OWNER/$REPO_NAME \
+          -d "{\"description\": \"$NEW_DESC\"}" > /dev/null
+
+        if [ $? -eq 0 ]; then
+          echo "✅ Repository description updated successfully"
+        else
+          echo "❌ Failed to update repository description"
+        fi
